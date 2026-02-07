@@ -1,0 +1,533 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================
+   Base Layer - Global Styles
+   ============================================ */
+@layer base {
+  html {
+    @apply scroll-smooth;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  }
+
+  body {
+    background-color: #0f172a;
+    color: #f1f5f9;
+    @apply font-sans antialiased;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Selection styles */
+  ::selection {
+    @apply bg-primary-500/30 text-white;
+  }
+
+  /* Focus visible for accessibility */
+  :focus-visible {
+    @apply outline-none ring-2 ring-primary-500 ring-offset-2;
+    --tw-ring-offset-color: #0f172a;
+  }
+
+  /* Headings */
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-semibold tracking-tight text-white;
+  }
+
+  h1 { @apply text-3xl md:text-4xl; }
+  h2 { @apply text-2xl md:text-3xl; }
+  h3 { @apply text-xl md:text-2xl; }
+  h4 { @apply text-lg md:text-xl; }
+
+  /* Code and monospace */
+  code, pre {
+    @apply font-mono;
+    font-feature-settings: 'liga' 0;
+  }
+
+  /* Links */
+  a {
+    @apply transition-colors duration-200;
+  }
+
+  /* Smooth scrollbar for Firefox */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #475569 #1e293b;
+  }
+}
+
+/* ============================================
+   Components Layer - Reusable Components
+   ============================================ */
+@layer components {
+  /* Card styles */
+  .card {
+    @apply bg-dark-800/80 backdrop-blur-sm rounded-xl border border-dark-700/50 shadow-card;
+  }
+
+  .card-interactive {
+    @apply card transition-all duration-250 hover:border-dark-600 hover:shadow-card-hover hover:-translate-y-0.5;
+  }
+
+  .card-glow {
+    @apply card hover:shadow-glow hover:border-primary-500/30;
+  }
+
+  /* Button variants */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98];
+  }
+
+  .btn-primary {
+    @apply btn bg-primary-600 hover:bg-primary-500 text-white shadow-glow-sm hover:shadow-glow;
+  }
+
+  .btn-secondary {
+    @apply btn bg-dark-700 hover:bg-dark-600 text-dark-100 border border-dark-600;
+  }
+
+  .btn-ghost {
+    @apply btn bg-transparent hover:bg-dark-700/50 text-dark-300 hover:text-white;
+  }
+
+  .btn-danger {
+    @apply btn bg-danger-600/20 hover:bg-danger-600/30 text-danger-400 border border-danger-500/30;
+  }
+
+  /* Input styles */
+  .input {
+    @apply w-full bg-dark-800/50 border border-dark-600 rounded-lg px-4 py-3 text-white placeholder-dark-400 transition-all duration-200;
+    @apply focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20;
+  }
+
+  .input-lg {
+    @apply input py-3.5 text-lg;
+  }
+
+  /* Badge styles */
+  .badge {
+    @apply inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full border;
+  }
+
+  .badge-success {
+    @apply badge bg-success-500/15 text-success-400 border-success-500/30;
+  }
+
+  .badge-warning {
+    @apply badge bg-warning-500/15 text-warning-400 border-warning-500/30;
+  }
+
+  .badge-danger {
+    @apply badge bg-danger-500/15 text-danger-400 border-danger-500/30;
+  }
+
+  .badge-info {
+    @apply badge bg-info-500/15 text-info-400 border-info-500/30;
+  }
+
+  .badge-primary {
+    @apply badge bg-primary-500/15 text-primary-400 border-primary-500/30;
+  }
+
+  /* Status indicator */
+  .status-dot {
+    @apply w-2 h-2 rounded-full;
+  }
+
+  .status-dot-active {
+    @apply status-dot bg-success-500 relative;
+  }
+
+  .status-dot-active::before {
+    content: '';
+    @apply absolute inset-0 rounded-full bg-success-400 animate-ping opacity-75;
+  }
+
+  /* Glass effect */
+  .glass {
+    @apply bg-dark-800/60 backdrop-blur-xl border border-dark-700/50;
+  }
+
+  .glass-strong {
+    @apply bg-dark-900/80 backdrop-blur-2xl border border-dark-700/70;
+  }
+
+  /* Gradient backgrounds */
+  .gradient-primary {
+    @apply bg-gradient-to-r from-primary-600 via-primary-500 to-primary-600 bg-[length:200%_auto] animate-gradient;
+  }
+
+  .gradient-glow {
+    @apply bg-gradient-to-r from-primary-500/20 via-primary-400/10 to-primary-500/20;
+  }
+
+  /* Gradient text */
+  .text-gradient {
+    @apply bg-gradient-to-r from-primary-400 via-pink-400 to-primary-400 bg-clip-text text-transparent;
+  }
+
+  .text-gradient-brand {
+    @apply bg-gradient-to-r from-primary-400 to-info-400 bg-clip-text text-transparent;
+  }
+
+  /* Section container */
+  .section {
+    @apply py-6 md:py-8;
+  }
+
+  /* Divider */
+  .divider {
+    @apply h-px bg-gradient-to-r from-transparent via-dark-600 to-transparent;
+  }
+}
+
+/* ============================================
+   Utilities Layer - Custom Utilities
+   ============================================ */
+@layer utilities {
+  /* Text utilities */
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  /* Line clamp */
+  .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .line-clamp-3 {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  /* Hide scrollbar but keep functionality */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Custom scrollbar */
+  .scrollbar-thin {
+    scrollbar-width: thin;
+  }
+
+  /* Animation utilities */
+  .animate-in {
+    animation: fadeUp 0.4s ease-out;
+  }
+
+  .animate-in-delay-1 {
+    animation: fadeUp 0.4s ease-out 0.1s both;
+  }
+
+  .animate-in-delay-2 {
+    animation: fadeUp 0.4s ease-out 0.2s both;
+  }
+
+  .animate-in-delay-3 {
+    animation: fadeUp 0.4s ease-out 0.3s both;
+  }
+
+  /* Hover scale */
+  .hover-scale {
+    @apply transition-transform duration-200 hover:scale-[1.02];
+  }
+
+  .hover-scale-sm {
+    @apply transition-transform duration-200 hover:scale-[1.01];
+  }
+
+  /* Glow effects */
+  .glow {
+    @apply shadow-glow;
+  }
+
+  .glow-success {
+    box-shadow: 0 0 20px rgba(34, 197, 94, 0.35);
+  }
+
+  .glow-danger {
+    box-shadow: 0 0 20px rgba(239, 68, 68, 0.35);
+  }
+
+  /* Background patterns */
+  .bg-grid {
+    background-image: linear-gradient(rgba(255,255,255,.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.03) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+
+  .bg-dots {
+    background-image: radial-gradient(circle, rgba(255,255,255,0.05) 1px, transparent 1px);
+    background-size: 20px 20px;
+  }
+}
+
+/* ============================================
+   Custom Scrollbar (WebKit)
+   ============================================ */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-dark-800/50;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-dark-600 rounded-full transition-colors;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-dark-500;
+}
+
+::-webkit-scrollbar-corner {
+  @apply bg-dark-800;
+}
+
+/* ============================================
+   Custom Animations
+   ============================================ */
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes pulse-ring {
+  0% {
+    transform: scale(0.8);
+    opacity: 0.8;
+  }
+  80%, 100% {
+    transform: scale(1.5);
+    opacity: 0;
+  }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* Animation classes */
+.animate-slide-in-right {
+  animation: slideInRight 0.3s ease-out;
+}
+
+.animate-pulse-ring {
+  animation: pulse-ring 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+.animate-shimmer {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.05) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 2s linear infinite;
+}
+
+/* ============================================
+   Number Input - Hide Spinners
+   ============================================ */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+/* ============================================
+   Table Styles
+   ============================================ */
+.table-container {
+  @apply overflow-x-auto rounded-xl border border-dark-700;
+}
+
+.table {
+  @apply w-full text-sm;
+}
+
+.table thead {
+  @apply bg-dark-800/50;
+}
+
+.table th {
+  @apply px-6 py-4 text-left text-xs font-semibold text-dark-400 uppercase tracking-wider;
+}
+
+.table td {
+  @apply px-6 py-4 whitespace-nowrap;
+}
+
+.table tbody tr {
+  @apply border-t border-dark-700/50 transition-colors hover:bg-dark-700/30;
+}
+
+/* ============================================
+   Skeleton Loading
+   ============================================ */
+.skeleton {
+  @apply bg-dark-700 rounded animate-pulse;
+}
+
+.skeleton-text {
+  @apply skeleton h-4 w-full;
+}
+
+.skeleton-title {
+  @apply skeleton h-6 w-3/4;
+}
+
+.skeleton-circle {
+  @apply skeleton rounded-full;
+}
+
+/* ============================================
+   Toast Animations
+   ============================================ */
+.toast-enter {
+  animation: slideInRight 0.3s ease-out;
+}
+
+.toast-exit {
+  animation: slideInRight 0.3s ease-in reverse;
+}
+
+/* ============================================
+   Page Transitions
+   ============================================ */
+.page-enter {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.page-enter-active {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 0.3s ease-out, transform 0.3s ease-out;
+}
+
+/* ============================================
+   Print Styles
+   ============================================ */
+@media print {
+  body {
+    @apply bg-white text-black;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+}
+
+/* ============================================
+   Solana Wallet Adapter Modal Overrides
+   ============================================ */
+.wallet-adapter-modal-wrapper {
+  @apply !bg-dark-900/95 !backdrop-blur-xl;
+}
+
+.wallet-adapter-modal-container {
+  @apply !bg-dark-800 !rounded-2xl !border !border-dark-700/50 !shadow-2xl;
+}
+
+.wallet-adapter-modal-title {
+  @apply !text-white !font-semibold !text-xl;
+}
+
+.wallet-adapter-modal-list {
+  @apply !mt-4;
+}
+
+.wallet-adapter-modal-list li {
+  @apply !mb-2;
+}
+
+.wallet-adapter-modal-list-more {
+  @apply !text-primary-400 hover:!text-primary-300;
+}
+
+.wallet-adapter-button {
+  @apply !bg-dark-700 hover:!bg-dark-600 !border !border-dark-600 hover:!border-dark-500 !rounded-xl !transition-all !duration-200;
+}
+
+.wallet-adapter-button-trigger {
+  @apply !bg-primary-600 hover:!bg-primary-500 !text-white !rounded-xl !border-0;
+}
+
+.wallet-adapter-modal-button-close {
+  @apply !bg-dark-700 hover:!bg-dark-600 !text-dark-400 hover:!text-white !rounded-lg !transition-colors;
+}
+
+.wallet-adapter-modal-middle-button {
+  @apply !bg-primary-600 hover:!bg-primary-500 !text-white !rounded-xl !font-medium !transition-colors;
+}
+
+.wallet-adapter-dropdown {
+  @apply !bg-dark-800 !border !border-dark-700 !rounded-xl !shadow-xl;
+}
+
+.wallet-adapter-dropdown-list {
+  @apply !bg-dark-800 !border !border-dark-700 !rounded-xl !overflow-hidden;
+}
+
+.wallet-adapter-dropdown-list-item {
+  @apply !bg-transparent hover:!bg-dark-700/50 !text-dark-300 hover:!text-white !transition-colors;
+}
+
+.wallet-adapter-dropdown-list-active {
+  @apply !bg-dark-700 !text-white;
+}
