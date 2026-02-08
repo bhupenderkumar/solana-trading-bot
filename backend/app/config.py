@@ -17,12 +17,21 @@ class Settings(BaseSettings):
     drift_env: str = "devnet"  # mainnet or devnet
     wallet_private_key: Optional[str] = None
 
-    # LLM
+    # LLM - Azure OpenAI via GitHub Enterprise
     openai_api_key: Optional[str] = None
     anthropic_api_key: Optional[str] = None
-    llm_model: str = "gpt-4o"  # GitHub Models - gpt-4o or claude-3.5-sonnet
-    github_proxy_url: str = "http://127.0.0.1:8080/v1"  # GitHub Models proxy
-    use_github_proxy: bool = True  # Use GitHub proxy for Claude
+    llm_model: str = "gpt-4o"
+    
+    # Azure OpenAI (GitHub Enterprise)
+    azure_openai_api_key: Optional[str] = None
+    azure_openai_endpoint: Optional[str] = None
+    azure_openai_deployment: str = "gpt-4o"
+    azure_openai_api_version: str = "2024-02-15-preview"
+    use_azure_openai: bool = False
+    
+    # Legacy GitHub proxy settings
+    github_proxy_url: str = "http://127.0.0.1:8080/v1"
+    use_github_proxy: bool = False
 
     # Job Scheduler
     check_interval_seconds: int = 10

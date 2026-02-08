@@ -31,10 +31,19 @@ services:
       - SOLANA_RPC_URL=${SOLANA_RPC_URL}
       - DRIFT_ENV=${DRIFT_ENV:-devnet}
       - WALLET_PRIVATE_KEY=${WALLET_PRIVATE_KEY}
+      # Azure OpenAI (GitHub Enterprise)
+      - USE_AZURE_OPENAI=${USE_AZURE_OPENAI:-true}
+      - AZURE_OPENAI_API_KEY=${AZURE_OPENAI_API_KEY}
+      - AZURE_OPENAI_ENDPOINT=${AZURE_OPENAI_ENDPOINT}
+      - AZURE_OPENAI_DEPLOYMENT=${AZURE_OPENAI_DEPLOYMENT:-gpt-4o}
+      - AZURE_OPENAI_API_VERSION=${AZURE_OPENAI_API_VERSION:-2024-02-15-preview}
+      - LLM_MODEL=${LLM_MODEL:-gpt-4o}
+      # Legacy (optional)
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - CHECK_INTERVAL_SECONDS=${CHECK_INTERVAL_SECONDS:-10}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - SECRET_KEY=${SECRET_KEY:-change-this-in-production}
     ports:
       - "8000:8000"
     depends_on:
@@ -50,8 +59,8 @@ services:
   # Frontend
   frontend:
     build:
-      context: ./frontend
-      dockerfile: ../docker/Dockerfile.frontend
+      context: .
+      dockerfile: docker/Dockerfile.frontend
     container_name: trading-frontend
     ports:
       - "3000:80"

@@ -18,6 +18,46 @@ os.environ['REQUESTS_CA_BUNDLE'] = certifi.where()
 settings = get_settings()
 
 
+async def get_openai_client():
+    """Get OpenAI client based on settings - supports Azure OpenAI and standard OpenAI."""
+    import httpx
+    from openai import AsyncOpenAI, AsyncAzureOpenAI
+    
+    http_client = httpx.AsyncClient(verify=certifi.where())
+    
+    if settings.use_azure_openai and settings.azure_openai_api_key and settings.azure_openai_endpoint:
+        # Use Azure OpenAI (GitHub Enterprise)
+        logger.info(f"Using Azure OpenAI at {settings.azure_openai_endpoint}")
+        client = AsyncAzureOpenAI(
+            api_key=settings.azure_openai_api_key,
+            api_version=settings.azure_openai_api_version,
+            azure_endpoint=settings.azure_openai_endpoint,
+            http_client=http_client
+        )
+        model = settings.azure_openai_deployment
+    elif settings.openai_api_key:
+        # Use standard OpenAI
+        logger.info("Using standard OpenAI API")
+        client = AsyncOpenAI(
+            api_key=settings.openai_api_key,
+            http_client=http_client
+        )
+        model = settings.llm_model
+    elif settings.use_github_proxy:
+        # Use GitHub Models proxy
+        logger.info(f"Using GitHub Models proxy at {settings.github_proxy_url}")
+        client = AsyncOpenAI(
+            api_key="github-proxy",
+            base_url=settings.github_proxy_url,
+            http_client=http_client
+        )
+        model = settings.llm_model
+    else:
+        raise ValueError("No LLM configured. Set AZURE_OPENAI_API_KEY, OPENAI_API_KEY, or enable USE_GITHUB_PROXY")
+    
+    return client, model, http_client
+
+
 class ParsedCondition(BaseModel):
     market: str
     condition_type: ConditionType
