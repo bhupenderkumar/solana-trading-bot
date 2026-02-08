@@ -286,15 +286,18 @@ class LLMAgent:
         context = f"Current price context: ${current_price}" if current_price else ""
         user_message = f"{context}\n\nUser instruction: {user_input}"
 
-        # Prefer GitHub proxy for Claude (free via GitHub Models)
-        if self.settings.use_github_proxy:
+        # Check for Azure OpenAI first (GitHub Enterprise)
+        if self.settings.use_azure_openai and self.settings.azure_openai_api_key:
+            return await self._parse_with_openai(user_message)
+        # Then GitHub proxy
+        elif self.settings.use_github_proxy:
             return await self._parse_with_github_proxy(user_message)
         elif self.settings.openai_api_key:
             return await self._parse_with_openai(user_message)
         elif self.settings.anthropic_api_key:
             return await self._parse_with_anthropic(user_message)
         else:
-            raise ValueError("No LLM configured. Enable USE_GITHUB_PROXY or set API keys")
+            raise ValueError("No LLM configured. Set AZURE_OPENAI_API_KEY, OPENAI_API_KEY, or enable USE_GITHUB_PROXY")
 
     async def _parse_with_github_proxy(self, user_message: str) -> ParsedRule:
         """Parse using GitHub Models proxy (Claude via GitHub)."""
@@ -339,23 +342,24 @@ class LLMAgent:
             await http_client.aclose()
 
     async def _parse_with_openai(self, user_message: str) -> ParsedRule:
-        """Parse using OpenAI API."""
-        from openai import AsyncOpenAI
+        """Parse using OpenAI API or Azure OpenAI."""
+        client, model, http_client = await get_openai_client()
+        
+        try:
+            response = await client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "user", "content": user_message}
+                ],
+                temperature=0.1,
+                response_format={"type": "json_object"}
+            )
 
-        client = AsyncOpenAI(api_key=self.settings.openai_api_key)
-
-        response = await client.chat.completions.create(
-            model=self.settings.llm_model,
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": user_message}
-            ],
-            temperature=0.1,
-            response_format={"type": "json_object"}
-        )
-
-        result = json.loads(response.choices[0].message.content)
-        return ParsedRule(**result)
+            result = json.loads(response.choices[0].message.content)
+            return ParsedRule(**result)
+        finally:
+            await http_client.aclose()
 
     async def _parse_with_anthropic(self, user_message: str) -> ParsedRule:
         """Parse using Anthropic API."""
@@ -407,15 +411,7 @@ class LLMAgent:
 
     async def _classify_with_llm_router(self, user_input: str, chat_history: Optional[List[Dict]] = None) -> IntentClassification:
         """Use LLM as intelligent router to classify intent and extract parameters."""
-        import httpx
-        from openai import AsyncOpenAI
-
-        http_client = httpx.AsyncClient(verify=certifi.where())
-        client = AsyncOpenAI(
-            api_key="github-proxy",
-            base_url=self.settings.github_proxy_url,
-            http_client=http_client
-        )
+        client, model, http_client = await get_openai_client()
 
         # Build context from chat history if available
         context_text = ""
@@ -430,7 +426,7 @@ class LLMAgent:
 
         try:
             response = await client.chat.completions.create(
-                model=self.settings.llm_model,
+                model=model,
                 messages=[
                     {"role": "system", "content": INTELLIGENT_ROUTER_PROMPT},
                     {"role": "user", "content": user_message}
@@ -564,19 +560,11 @@ class LLMAgent:
 
     async def _classify_with_llm(self, user_input: str) -> IntentClassification:
         """Classify intent using LLM."""
-        import httpx
-        from openai import AsyncOpenAI
-
-        http_client = httpx.AsyncClient(verify=certifi.where())
-        client = AsyncOpenAI(
-            api_key="github-proxy",
-            base_url=self.settings.github_proxy_url,
-            http_client=http_client
-        )
+        client, model, http_client = await get_openai_client()
 
         try:
             response = await client.chat.completions.create(
-                model=self.settings.llm_model,
+                model=model,
                 messages=[
                     {"role": "system", "content": INTENT_CLASSIFICATION_PROMPT},
                     {"role": "user", "content": user_input}
@@ -597,6 +585,8 @@ class LLMAgent:
             return IntentClassification(**result)
         except Exception as e:
             return IntentClassification(intent="general_chat", confidence=0.5)
+        finally:
+            await http_client.aclose()
         finally:
             await http_client.aclose()
 
@@ -1199,15 +1189,7 @@ The chart shows {market} has been {direction} over the past {days} days."""
 
     async def _chat_with_llm(self, user_input: str, context: Dict) -> ChatResponse:
         """Generate a chat response using LLM."""
-        import httpx
-        from openai import AsyncOpenAI
-
-        http_client = httpx.AsyncClient(verify=certifi.where())
-        client = AsyncOpenAI(
-            api_key="github-proxy",
-            base_url=self.settings.github_proxy_url,
-            http_client=http_client
-        )
+        client, model, http_client = await get_openai_client()
 
         # Build context message
         context_info = ""
@@ -1218,7 +1200,7 @@ The chart shows {market} has been {direction} over the past {days} days."""
 
         try:
             response = await client.chat.completions.create(
-                model=self.settings.llm_model,
+                model=model,
                 messages=[
                     {"role": "system", "content": CHAT_SYSTEM_PROMPT + context_info},
                     {"role": "user", "content": user_input}
@@ -1238,6 +1220,8 @@ The chart shows {market} has been {direction} over the past {days} days."""
                 response="I'm having trouble processing your request. Please try again or ask for help.",
                 data=None
             )
+        finally:
+            await http_client.aclose()
         finally:
             await http_client.aclose()
 

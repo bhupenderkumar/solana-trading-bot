@@ -21,40 +21,40 @@ interface StatCardProps {
 
 function StatCard({ title, value, subtitle, icon, trend, trendValue, color }: StatCardProps) {
   const colorStyles = {
-    primary: 'from-primary-500/20 via-primary-500/10 to-transparent border-primary-500/30 hover:border-primary-400/50',
-    success: 'from-success-500/20 via-success-500/10 to-transparent border-success-500/30 hover:border-success-400/50',
-    info: 'from-info-500/20 via-info-500/10 to-transparent border-info-500/30 hover:border-info-400/50',
-    warning: 'from-warning-500/20 via-warning-500/10 to-transparent border-warning-500/30 hover:border-warning-400/50',
-    danger: 'from-danger-500/20 via-danger-500/10 to-transparent border-danger-500/30 hover:border-danger-400/50',
-    default: 'from-dark-700/50 via-dark-700/30 to-transparent border-dark-600/50 hover:border-dark-500/50',
+    primary: 'from-indigo-500/20 via-indigo-500/10 to-transparent border-indigo-500/20 hover:border-indigo-400/40',
+    success: 'from-emerald-500/20 via-emerald-500/10 to-transparent border-emerald-500/20 hover:border-emerald-400/40',
+    info: 'from-cyan-500/20 via-cyan-500/10 to-transparent border-cyan-500/20 hover:border-cyan-400/40',
+    warning: 'from-amber-500/20 via-amber-500/10 to-transparent border-amber-500/20 hover:border-amber-400/40',
+    danger: 'from-red-500/20 via-red-500/10 to-transparent border-red-500/20 hover:border-red-400/40',
+    default: 'from-gray-700/50 via-gray-700/30 to-transparent border-gray-700/30 hover:border-gray-600/50',
   }
 
   const iconColors = {
-    primary: 'text-primary-400 bg-primary-500/20',
-    success: 'text-success-400 bg-success-500/20',
-    info: 'text-info-400 bg-info-500/20',
-    warning: 'text-warning-400 bg-warning-500/20',
-    danger: 'text-danger-400 bg-danger-500/20',
-    default: 'text-dark-400 bg-dark-700/50',
+    primary: 'text-indigo-400 bg-indigo-500/15',
+    success: 'text-emerald-400 bg-emerald-500/15',
+    info: 'text-cyan-400 bg-cyan-500/15',
+    warning: 'text-amber-400 bg-amber-500/15',
+    danger: 'text-red-400 bg-red-500/15',
+    default: 'text-gray-400 bg-gray-700/50',
   }
 
   return (
-    <div className={`bg-gradient-to-br ${colorStyles[color]} border rounded-2xl p-5 transition-all duration-300 hover:scale-[1.02] hover:shadow-lg group`}>
+    <div className={`bg-gradient-to-br ${colorStyles[color]} border rounded-2xl p-5 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl group`}>
       <div className="flex items-start justify-between">
         <div>
-          <p className="text-sm text-dark-400 font-medium mb-1">{title}</p>
+          <p className="text-sm text-gray-400 font-medium mb-1">{title}</p>
           <p className="text-3xl font-bold tracking-tight text-white">{value}</p>
           {subtitle && (
-            <p className="text-xs text-dark-500 mt-1.5">{subtitle}</p>
+            <p className="text-xs text-gray-500 mt-1.5">{subtitle}</p>
           )}
         </div>
-        <div className={`p-2.5 rounded-xl ${iconColors[color]} transition-transform group-hover:scale-110`}>
+        <div className={`p-2.5 rounded-xl ${iconColors[color]} border border-current/10 transition-transform duration-300 group-hover:scale-110`}>
           {icon}
         </div>
       </div>
       {trend && trendValue && (
         <div className={`flex items-center gap-1.5 mt-3 text-sm font-medium ${
-          trend === 'up' ? 'text-success-400' : trend === 'down' ? 'text-danger-400' : 'text-dark-400'
+          trend === 'up' ? 'text-emerald-400' : trend === 'down' ? 'text-red-400' : 'text-gray-400'
         }`}>
           {trend === 'up' ? <TrendingUp className="h-3.5 w-3.5" /> :
            trend === 'down' ? <TrendingDown className="h-3.5 w-3.5" /> : null}
@@ -67,7 +67,7 @@ function StatCard({ title, value, subtitle, icon, trend, trendValue, color }: St
 
 function StatCardSkeleton() {
   return (
-    <div className="bg-dark-800/50 border border-dark-700/50 rounded-2xl p-5">
+    <div className="bg-gray-800/50 border border-gray-700/30 rounded-2xl p-5">
       <div className="flex items-start justify-between">
         <div className="space-y-3">
           <div className="h-4 w-20 skeleton rounded"></div>

@@ -10,10 +10,10 @@ import { rulesApi, chatApi, conversationApi, pricesApi, TradingRule } from '../s
 import { useToast } from './Toast'
 
 const QUICK_ACTIONS = [
-  { label: 'Prices', icon: TrendingUp, message: 'Show me all prices', color: 'text-success-400' },
-  { label: 'Balance', icon: Wallet, message: 'What is my balance?', color: 'text-primary-400' },
-  { label: 'My Rules', icon: Target, message: 'Show my rules', color: 'text-warning-400' },
-  { label: 'Help', icon: HelpCircle, message: 'Help', color: 'text-dark-300' },
+  { label: 'Prices', icon: TrendingUp, message: 'Show me all prices', color: 'text-emerald-400' },
+  { label: 'Balance', icon: Wallet, message: 'What is my balance?', color: 'text-indigo-400' },
+  { label: 'My Rules', icon: Target, message: 'Show my rules', color: 'text-amber-400' },
+  { label: 'Help', icon: HelpCircle, message: 'Help', color: 'text-gray-400' },
 ]
 
 const STARTER_CARDS = [
@@ -25,7 +25,8 @@ const STARTER_CARDS = [
       'When BTC reaches $100k, sell 50%',
     ],
     icon: Target,
-    color: 'from-primary-500/20 to-primary-600/10',
+    color: 'from-indigo-500/20 to-purple-600/10',
+    iconColor: 'text-indigo-400',
   },
   {
     title: 'Check Prices & Balance',
@@ -35,7 +36,8 @@ const STARTER_CARDS = [
       'Show my balance',
     ],
     icon: TrendingUp,
-    color: 'from-success-500/20 to-success-600/10',
+    color: 'from-emerald-500/20 to-teal-600/10',
+    iconColor: 'text-emerald-400',
   },
   {
     title: 'Analyze Performance',
@@ -45,7 +47,8 @@ const STARTER_CARDS = [
       'How much profit if I invested $100 in SOL?',
     ],
     icon: DollarSign,
-    color: 'from-warning-500/20 to-warning-600/10',
+    color: 'from-amber-500/20 to-orange-600/10',
+    iconColor: 'text-amber-400',
   },
 ]
 
@@ -172,11 +175,11 @@ export default function ChatPanel({ conversationId, onConversationCreated }: Cha
     <div className="flex flex-col h-full">
       {/* Price Ticker */}
       {prices && (
-        <div className="border-b border-dark-700 bg-dark-800/80 overflow-hidden">
-          <div className="flex items-center gap-6 px-4 py-2 animate-marquee">
+        <div className="border-b border-gray-700/30 bg-gray-900/50 overflow-hidden">
+          <div className="flex items-center gap-8 px-4 py-2.5 animate-marquee">
             {Object.entries(prices).map(([market, price]) => (
               <div key={market} className="flex items-center gap-2 text-sm whitespace-nowrap">
-                <span className="text-dark-400">{market.replace('-PERP', '')}</span>
+                <span className="text-gray-500">{market.replace('-PERP', '')}</span>
                 <span className="text-white font-medium">{formatPrice(price)}</span>
               </div>
             ))}
@@ -186,13 +189,13 @@ export default function ChatPanel({ conversationId, onConversationCreated }: Cha
 
       {/* Conversation Header with Stats */}
       {conversation && (
-        <div className="p-3 border-b border-dark-700 bg-dark-800/50">
+        <div className="p-4 border-b border-gray-700/30 bg-gray-900/30">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <h3 className="font-medium text-white truncate max-w-[300px]">{conversation.title}</h3>
               <button 
                 onClick={() => refetchConversation()}
-                className="p-1 text-dark-400 hover:text-white transition-colors"
+                className="p-1.5 text-gray-500 hover:text-white transition-all duration-300 hover:bg-white/5 rounded-lg"
                 title="Refresh"
               >
                 <RefreshCw className="h-3.5 w-3.5" />
@@ -200,22 +203,22 @@ export default function ChatPanel({ conversationId, onConversationCreated }: Cha
             </div>
             <div className="flex items-center gap-4 text-xs">
               {conversation.stats.total_rules > 0 && (
-                <span className="text-dark-400">{conversation.stats.total_rules} rules</span>
+                <span className="text-gray-500">{conversation.stats.total_rules} rules</span>
               )}
               {conversation.stats.active_rules > 0 && (
-                <div className="flex items-center gap-1 text-success-400" title="Active Rules">
+                <div className="flex items-center gap-1.5 text-emerald-400" title="Active Rules">
                   <Activity className="h-3 w-3" />
                   <span>{conversation.stats.active_rules} active</span>
                 </div>
               )}
               {conversation.stats.triggered_rules > 0 && (
-                <div className="flex items-center gap-1 text-primary-400" title="Triggered Rules">
+                <div className="flex items-center gap-1.5 text-indigo-400" title="Triggered Rules">
                   <Zap className="h-3 w-3" />
                   <span>{conversation.stats.triggered_rules} triggered</span>
                 </div>
               )}
               {conversation.stats.paused_rules > 0 && (
-                <div className="flex items-center gap-1 text-warning-400" title="Paused Rules">
+                <div className="flex items-center gap-1.5 text-amber-400" title="Paused Rules">
                   <Pause className="h-3 w-3" />
                   <span>{conversation.stats.paused_rules} paused</span>
                 </div>
@@ -229,60 +232,60 @@ export default function ChatPanel({ conversationId, onConversationCreated }: Cha
       <div className="flex-1 overflow-y-auto">
         {isLoadingConversation ? (
           <div className="flex items-center justify-center h-full">
-            <Loader2 className="h-6 w-6 animate-spin text-primary-400" />
+            <Loader2 className="h-6 w-6 animate-spin text-indigo-400" />
           </div>
         ) : allMessages.length === 0 ? (
           <div className="p-6 space-y-6">
             {/* Welcome Header */}
-            <div className="text-center py-6">
-              <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-primary-500/30 to-primary-600/20 mb-4">
-                <Sparkles className="h-8 w-8 text-primary-400" />
+            <div className="text-center py-8 animate-in">
+              <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br from-indigo-500/20 to-purple-600/20 border border-indigo-500/20 mb-5">
+                <Sparkles className="h-10 w-10 text-indigo-400" />
               </div>
-              <h2 className="text-2xl font-bold text-white mb-2">Trading Assistant</h2>
-              <p className="text-dark-400 max-w-lg mx-auto">
+              <h2 className="text-3xl font-bold text-gradient mb-3">Trading Assistant</h2>
+              <p className="text-gray-400 max-w-lg mx-auto text-base">
                 Create automated trading rules, check prices, or ask anything about your portfolio using natural language.
               </p>
             </div>
 
             {/* Quick Actions */}
-            <div className="flex justify-center gap-2">
+            <div className="flex justify-center gap-3 animate-in-delay-1">
               {QUICK_ACTIONS.map((action) => (
                 <button
                   key={action.label}
                   onClick={() => handleQuickAction(action.message)}
                   disabled={isPending}
-                  className="flex items-center gap-2 px-4 py-2 bg-dark-700/50 hover:bg-dark-700 border border-dark-600 hover:border-dark-500 rounded-lg transition-all text-sm"
+                  className="flex items-center gap-2 px-4 py-2.5 bg-gray-800/50 hover:bg-gray-700/50 border border-gray-700/30 hover:border-gray-600/50 rounded-xl transition-all duration-300 text-sm hover-lift"
                 >
                   <action.icon className={`h-4 w-4 ${action.color}`} />
-                  <span className="text-dark-200">{action.label}</span>
+                  <span className="text-gray-200">{action.label}</span>
                 </button>
               ))}
             </div>
 
             {/* Starter Cards */}
-            <div className="grid md:grid-cols-3 gap-4 mt-8">
+            <div className="grid md:grid-cols-3 gap-4 mt-8 animate-in-delay-2">
               {STARTER_CARDS.map((card) => (
                 <div
                   key={card.title}
-                  className={`rounded-xl bg-gradient-to-br ${card.color} border border-dark-600 p-5 hover:border-dark-500 transition-all`}
+                  className={`card-interactive rounded-xl bg-gradient-to-br ${card.color} p-5`}
                 >
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="p-2 bg-dark-800/50 rounded-lg">
-                      <card.icon className="h-5 w-5 text-white" />
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="p-2.5 bg-gray-900/50 rounded-xl border border-gray-700/30">
+                      <card.icon className={`h-5 w-5 ${card.iconColor}`} />
                     </div>
                     <h3 className="font-semibold text-white">{card.title}</h3>
                   </div>
-                  <p className="text-sm text-dark-300 mb-4">{card.description}</p>
+                  <p className="text-sm text-gray-400 mb-4">{card.description}</p>
                   <div className="space-y-2">
                     {card.examples.map((example) => (
                       <button
                         key={example}
                         onClick={() => handleQuickAction(example)}
                         disabled={isPending}
-                        className="w-full text-left text-xs bg-dark-800/50 hover:bg-dark-800 px-3 py-2 rounded-lg text-dark-200 hover:text-white transition-all flex items-center justify-between group"
+                        className="w-full text-left text-xs bg-gray-900/40 hover:bg-gray-800/60 px-3 py-2.5 rounded-lg text-gray-300 hover:text-white transition-all duration-300 flex items-center justify-between group"
                       >
                         <span className="truncate">{example}</span>
-                        <ArrowRight className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 ml-2" />
+                        <ArrowRight className="h-3 w-3 opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all duration-300 flex-shrink-0 ml-2" />
                       </button>
                     ))}
                   </div>
@@ -295,35 +298,27 @@ export default function ChatPanel({ conversationId, onConversationCreated }: Cha
             {allMessages.map((msg, idx) => (
               <div
                 key={idx}
-                className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : ''}`}
+                className={`flex gap-3 message-enter ${msg.role === 'user' ? 'justify-end' : ''}`}
               >
                 {msg.role === 'assistant' && (
-                  <div className="flex-shrink-0 p-2 bg-primary-500/20 rounded-lg h-fit">
-                    <Bot className="h-4 w-4 text-primary-400" />
+                  <div className="flex-shrink-0 p-2.5 bg-indigo-500/15 rounded-xl h-fit border border-indigo-500/20">
+                    <Bot className="h-4 w-4 text-indigo-400" />
                   </div>
                 )}
                 <div className="max-w-[80%] space-y-2">
                   <div
-                    className={`rounded-xl p-3 ${
+                    className={`rounded-2xl p-4 ${
                       msg.role === 'user'
-                        ? 'bg-primary-500/20 border border-primary-500/30'
-                        : 'bg-dark-700/50 border border-dark-600'
+                        ? 'bg-indigo-500/15 border border-indigo-500/20'
+                        : 'bg-gray-800/50 border border-gray-700/30'
                     }`}
                   >
                     {'intent' in msg && msg.intent && msg.intent !== 'general_chat' && (
-                      <p className="text-xs text-dark-500 mb-1 uppercase tracking-wide">
+                      <p className="text-xs text-gray-500 mb-2 uppercase tracking-wider font-medium">
                         {msg.intent.replace(/_/g, ' ')}
                       </p>
                     )}
-                    <div className="prose prose-invert prose-sm max-w-none text-white
-                      prose-headings:text-white prose-headings:font-semibold prose-headings:mt-2 prose-headings:mb-1
-                      prose-h3:text-sm prose-h3:text-primary-300
-                      prose-p:text-dark-200 prose-p:my-1 prose-p:leading-relaxed
-                      prose-strong:text-white prose-strong:font-semibold
-                      prose-ul:my-1 prose-ul:pl-3 prose-li:text-dark-200 prose-li:my-0.5
-                      prose-ol:my-1 prose-ol:pl-3
-                      prose-code:text-primary-300 prose-code:bg-dark-700 prose-code:px-1 prose-code:py-0.5 prose-code:rounded
-                      prose-a:text-primary-400 prose-a:no-underline hover:prose-a:underline">
+                    <div className="markdown-content">
                       <ReactMarkdown>{msg.content}</ReactMarkdown>
                     </div>
                   </div>
@@ -332,33 +327,36 @@ export default function ChatPanel({ conversationId, onConversationCreated }: Cha
                   {'ruleCreated' in msg && msg.ruleCreated && (
                     <Link
                       to={`/rules/${msg.ruleCreated.id}`}
-                      className="block bg-success-500/10 border border-success-500/30 rounded-lg p-3 hover:bg-success-500/15 transition-colors"
+                      className="block bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-4 hover:bg-emerald-500/15 transition-all duration-300 hover-lift"
                     >
-                      <div className="flex items-center gap-2 text-success-400 text-sm font-medium mb-1">
+                      <div className="flex items-center gap-2 text-emerald-400 text-sm font-medium mb-1.5">
                         <Target className="h-4 w-4" />
                         Rule Created
                       </div>
-                      <p className="text-sm text-dark-200">{msg.ruleCreated.parsed_summary || msg.ruleCreated.user_input}</p>
-                      <p className="text-xs text-dark-400 mt-1">{msg.ruleCreated.market} • Click to view details</p>
+                      <p className="text-sm text-gray-200">{msg.ruleCreated.parsed_summary || msg.ruleCreated.user_input}</p>
+                      <p className="text-xs text-gray-500 mt-2">{msg.ruleCreated.market} • Click to view details</p>
                     </Link>
                   )}
                 </div>
                 {msg.role === 'user' && (
-                  <div className="flex-shrink-0 p-2 bg-dark-700 rounded-lg h-fit">
-                    <User className="h-4 w-4 text-dark-300" />
+                  <div className="flex-shrink-0 p-2.5 bg-gray-700/50 rounded-xl h-fit border border-gray-700/30">
+                    <User className="h-4 w-4 text-gray-400" />
                   </div>
                 )}
               </div>
             ))}
             
             {isPending && (
-              <div className="flex gap-3">
-                <div className="flex-shrink-0 p-2 bg-primary-500/20 rounded-lg h-fit">
-                  <Bot className="h-4 w-4 text-primary-400" />
+              <div className="flex gap-3 message-enter">
+                <div className="flex-shrink-0 p-2.5 bg-indigo-500/15 rounded-xl h-fit border border-indigo-500/20">
+                  <Bot className="h-4 w-4 text-indigo-400" />
                 </div>
-                <div className="bg-dark-700/50 border border-dark-600 rounded-xl p-3 flex items-center gap-2">
-                  <Loader2 className="h-4 w-4 animate-spin text-primary-400" />
-                  <span className="text-sm text-dark-400">Thinking...</span>
+                <div className="bg-gray-800/50 border border-gray-700/30 rounded-2xl p-4">
+                  <div className="typing-indicator">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                  </div>
                 </div>
               </div>
             )}
@@ -368,19 +366,19 @@ export default function ChatPanel({ conversationId, onConversationCreated }: Cha
       </div>
 
       {/* Input Area */}
-      <div className="p-4 border-t border-dark-700 bg-dark-800/80">
+      <div className="p-4 border-t border-gray-700/30 bg-gray-900/50">
         {/* Quick action chips when in conversation */}
         {allMessages.length > 0 && (
-          <div className="flex gap-2 mb-3 overflow-x-auto pb-1">
+          <div className="flex gap-2 mb-3 overflow-x-auto pb-1 scrollbar-thin">
             {QUICK_ACTIONS.map((action) => (
               <button
                 key={action.label}
                 onClick={() => handleQuickAction(action.message)}
                 disabled={isPending}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-dark-700/50 hover:bg-dark-700 border border-dark-600 rounded-full text-xs whitespace-nowrap transition-all"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-800/50 hover:bg-gray-700/50 border border-gray-700/30 rounded-full text-xs whitespace-nowrap transition-all duration-300"
               >
                 <action.icon className={`h-3 w-3 ${action.color}`} />
-                <span className="text-dark-300">{action.label}</span>
+                <span className="text-gray-400">{action.label}</span>
               </button>
             ))}
           </div>
@@ -395,13 +393,13 @@ export default function ChatPanel({ conversationId, onConversationCreated }: Cha
             placeholder={allMessages.length === 0 
               ? "Ask anything or create a trading rule..." 
               : "Type your message..."}
-            className="flex-1 bg-dark-700 border border-dark-600 rounded-xl px-4 py-3 text-white placeholder-dark-400 focus:outline-none focus:border-primary-500 transition-colors"
+            className="input-lg flex-1"
             disabled={isPending}
           />
           <button
             type="submit"
             disabled={isPending || !input.trim()}
-            className="btn-primary px-5 py-3 flex items-center gap-2"
+            className="btn-primary px-6 py-3 flex items-center gap-2"
           >
             {isPending ? (
               <Loader2 className="h-5 w-5 animate-spin" />
@@ -412,7 +410,7 @@ export default function ChatPanel({ conversationId, onConversationCreated }: Cha
         </form>
 
         {(sendChat.isError || createRule.isError) && (
-          <p className="text-danger-400 mt-2 text-sm bg-danger-500/10 border border-danger-500/30 rounded-lg px-3 py-2">
+          <p className="text-red-400 mt-3 text-sm bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-2.5">
             {(sendChat.error as Error)?.message || (createRule.error as Error)?.message}
           </p>
         )}
