@@ -6,7 +6,7 @@ from typing import Optional, Dict, Any, List
 from datetime import datetime
 
 from app.database import get_db
-from app.models import Conversation, ChatMessage, TradingRule, MessageRole, RuleStatus
+from app.models import Conversation, ChatMessage, TradingRule, RuleStatus
 from app.agents.llm_agent import llm_agent, ChatResponse, SecondaryIntent
 from app.services.drift_service import drift_service
 from app.services import price_history_service
@@ -299,7 +299,7 @@ async def get_conversation(conversation_id: int, db: AsyncSession = Depends(get_
         messages=[
             MessageResponse(
                 id=m.id,
-                role=m.role.value,
+                role=m.role,
                 content=m.content,
                 intent=m.intent,
                 data=m.data,
@@ -419,20 +419,20 @@ async def chat(request: ChatRequest, db: AsyncSession = Depends(get_db)):
             
             # Convert to chat_history format for LLM
             chat_history = [
-                {"role": msg.role.value, "content": msg.content}
+                {"role": msg.role, "content": msg.content}
                 for msg in recent_messages
             ]
             
             # Get last assistant message data for context continuity
             for msg in reversed(recent_messages):
-                if msg.role == MessageRole.ASSISTANT and msg.data:
+                if msg.role == "assistant" and msg.data:
                     last_context = msg.data
                     break
         
         # Save user message
         user_message = ChatMessage(
             conversation_id=conversation.id,
-            role=MessageRole.USER,
+            role="user",
             content=request.message
         )
         db.add(user_message)
@@ -624,7 +624,7 @@ async def chat(request: ChatRequest, db: AsyncSession = Depends(get_db)):
         # Save assistant response
         assistant_message = ChatMessage(
             conversation_id=conversation.id,
-            role=MessageRole.ASSISTANT,
+            role="assistant",
             content=final_response,
             intent=chat_response.intent,
             data={

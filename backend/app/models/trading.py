@@ -54,7 +54,7 @@ class ChatMessage(Base):
     id = Column(Integer, primary_key=True, index=True)
     conversation_id = Column(Integer, ForeignKey("conversations.id"), nullable=False)
     
-    role = Column(Enum(MessageRole, values_callable=lambda x: [e.value for e in x]), nullable=False)
+    role = Column(String(20), nullable=False)  # "user", "assistant", "system"
     content = Column(Text, nullable=False)
     
     # Optional metadata
