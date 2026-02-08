@@ -58,10 +58,16 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS middleware
+# CORS middleware - allow frontend origins
+cors_origins = [
+    "http://localhost:3000",
+    "http://localhost:5173",
+    "https://frontend-production-01b2.up.railway.app",  # Railway frontend
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:5173"],
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
