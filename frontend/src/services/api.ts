@@ -2,12 +2,33 @@ import axios from 'axios'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api'
 
+// Log the API URL being used (helpful for debugging)
+console.log('API Base URL:', API_BASE_URL)
+if (API_BASE_URL === '/api') {
+  console.warn('VITE_API_URL is not set. API calls may fail if backend is on a different domain.')
+}
+
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
 })
+
+// Response interceptor to detect HTML responses (misconfigured API URL)
+api.interceptors.response.use(
+  (response) => {
+    // Check if we received HTML instead of JSON (common when VITE_API_URL is wrong)
+    if (typeof response.data === 'string' && response.data.includes('<!DOCTYPE html>')) {
+      console.error('API returned HTML instead of JSON. Check VITE_API_URL configuration.')
+      throw new Error('API configuration error: Received HTML instead of JSON. Please check VITE_API_URL.')
+    }
+    return response
+  },
+  (error) => {
+    return Promise.reject(error)
+  }
+)
 
 // Types
 export interface TradingRule {

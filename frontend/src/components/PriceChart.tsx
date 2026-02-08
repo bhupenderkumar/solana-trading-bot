@@ -187,30 +187,33 @@ export default function PriceChart({
 }
 
 function StatisticsCards({ statistics }: { statistics: PriceStatistics }) {
-  const isPositive = statistics.price_change_percent >= 0
+  // Defensive checks for undefined statistics
+  if (!statistics) return null
+  
+  const isPositive = (statistics.price_change_percent ?? 0) >= 0
 
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
       <StatCard
         label="Current"
-        value={`$${statistics.current_price.toLocaleString()}`}
+        value={`$${statistics.current_price?.toLocaleString() ?? 'N/A'}`}
         icon={<Activity className="h-4 w-4" />}
       />
       <StatCard
-        label={`${statistics.days}D Change`}
-        value={`${isPositive ? '+' : ''}${statistics.price_change_percent.toFixed(2)}%`}
-        subValue={`${isPositive ? '+' : ''}$${statistics.price_change.toFixed(2)}`}
+        label={`${statistics.days ?? 0}D Change`}
+        value={`${isPositive ? '+' : ''}${(statistics.price_change_percent ?? 0).toFixed(2)}%`}
+        subValue={`${isPositive ? '+' : ''}$${(statistics.price_change ?? 0).toFixed(2)}`}
         icon={isPositive ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
         valueClassName={isPositive ? 'text-success-400' : 'text-danger-400'}
       />
       <StatCard
         label="High"
-        value={`$${statistics.high_price.toLocaleString()}`}
+        value={`$${statistics.high_price?.toLocaleString() ?? 'N/A'}`}
         icon={<TrendingUp className="h-4 w-4 text-success-400" />}
       />
       <StatCard
         label="Low"
-        value={`$${statistics.low_price.toLocaleString()}`}
+        value={`$${statistics.low_price?.toLocaleString() ?? 'N/A'}`}
         icon={<TrendingDown className="h-4 w-4 text-danger-400" />}
       />
     </div>
