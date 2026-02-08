@@ -19,11 +19,21 @@ settings = get_settings()
 
 
 async def get_openai_client():
-    """Get OpenAI client based on settings - supports Groq, Azure OpenAI, and standard OpenAI."""
+    """Get OpenAI client based on settings - supports Groq, Azure OpenAI, and standard OpenAI.
+    
+    Priority order:
+    1. Groq (if USE_GROQ=true and GROQ_API_KEY is set) - RECOMMENDED, fastest
+    2. Azure OpenAI (if USE_AZURE_OPENAI=true and credentials set)
+    3. Standard OpenAI (if OPENAI_API_KEY is set)
+    4. GitHub Proxy (if USE_GITHUB_PROXY=true)
+    """
     import httpx
     from openai import AsyncOpenAI, AsyncAzureOpenAI
     
     http_client = httpx.AsyncClient(verify=certifi.where())
+    
+    # Log current config for debugging
+    logger.info(f"LLM Config: use_groq={settings.use_groq}, groq_key_set={bool(settings.groq_api_key)}")
     
     if settings.use_groq and settings.groq_api_key:
         # Use Groq (fast inference)
