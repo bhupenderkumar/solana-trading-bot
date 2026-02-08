@@ -15,7 +15,11 @@ RUN npm install --legacy-peer-deps
 # Copy source files
 COPY . .
 
-# Build the application
+# Accept build-time environment variable for API URL
+ARG VITE_API_URL
+ENV VITE_API_URL=$VITE_API_URL
+
+# Build the application (VITE_API_URL will be baked into the bundle)
 RUN npm run build
 
 # Production stage - use serve to host static files
