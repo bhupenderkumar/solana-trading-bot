@@ -19,13 +19,22 @@ settings = get_settings()
 
 
 async def get_openai_client():
-    """Get OpenAI client based on settings - supports Azure OpenAI and standard OpenAI."""
+    """Get OpenAI client based on settings - supports Groq, Azure OpenAI, and standard OpenAI."""
     import httpx
     from openai import AsyncOpenAI, AsyncAzureOpenAI
     
     http_client = httpx.AsyncClient(verify=certifi.where())
     
-    if settings.use_azure_openai and settings.azure_openai_api_key and settings.azure_openai_endpoint:
+    if settings.use_groq and settings.groq_api_key:
+        # Use Groq (fast inference)
+        logger.info(f"Using Groq with model {settings.groq_model}")
+        client = AsyncOpenAI(
+            api_key=settings.groq_api_key,
+            base_url="https://api.groq.com/openai/v1",
+            http_client=http_client
+        )
+        model = settings.groq_model
+    elif settings.use_azure_openai and settings.azure_openai_api_key and settings.azure_openai_endpoint:
         # Use Azure OpenAI (GitHub Enterprise)
         logger.info(f"Using Azure OpenAI at {settings.azure_openai_endpoint}")
         client = AsyncAzureOpenAI(
@@ -53,7 +62,7 @@ async def get_openai_client():
         )
         model = settings.llm_model
     else:
-        raise ValueError("No LLM configured. Set AZURE_OPENAI_API_KEY, OPENAI_API_KEY, or enable USE_GITHUB_PROXY")
+        raise ValueError("No LLM configured. Set GROQ_API_KEY, AZURE_OPENAI_API_KEY, OPENAI_API_KEY, or enable USE_GITHUB_PROXY")
     
     return client, model, http_client
 
@@ -585,8 +594,6 @@ class LLMAgent:
             return IntentClassification(**result)
         except Exception as e:
             return IntentClassification(intent="general_chat", confidence=0.5)
-        finally:
-            await http_client.aclose()
         finally:
             await http_client.aclose()
 
@@ -1220,8 +1227,6 @@ The chart shows {market} has been {direction} over the past {days} days."""
                 response="I'm having trouble processing your request. Please try again or ask for help.",
                 data=None
             )
-        finally:
-            await http_client.aclose()
         finally:
             await http_client.aclose()
 
