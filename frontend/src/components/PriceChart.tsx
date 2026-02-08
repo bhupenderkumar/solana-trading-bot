@@ -248,6 +248,10 @@ function StatCard({
 
 function LineChart({ data }: { data: HistoricalPriceData }) {
   const { points, min, max, isUp } = useMemo(() => {
+    // Defensive check for prices array
+    if (!data?.prices || !Array.isArray(data.prices) || data.prices.length === 0) {
+      return { points: [], min: 0, max: 0, isUp: true }
+    }
     const prices = data.prices.map((p) => p[1])
     const min = Math.min(...prices)
     const max = Math.max(...prices)
@@ -265,6 +269,15 @@ function LineChart({ data }: { data: HistoricalPriceData }) {
 
     return { points, min, max, isUp }
   }, [data])
+
+  // Handle empty data case
+  if (points.length === 0) {
+    return (
+      <div className="h-64 flex items-center justify-center text-dark-400">
+        No price data available
+      </div>
+    )
+  }
 
   const pathD = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')
   const areaPathD = `${pathD} L ${points[points.length - 1].x} 200 L ${points[0].x} 200 Z`
@@ -309,19 +322,26 @@ function LineChart({ data }: { data: HistoricalPriceData }) {
       </div>
 
       {/* Date labels */}
-      <div className="absolute left-0 bottom-0 text-xs text-dark-500">
-        {new Date(data.prices[0][0]).toLocaleDateString()}
-      </div>
-      <div className="absolute right-0 bottom-6 text-xs text-dark-500">
-        {new Date(data.prices[data.prices.length - 1][0]).toLocaleDateString()}
-      </div>
+      {data.prices.length > 0 && (
+        <>
+          <div className="absolute left-0 bottom-0 text-xs text-dark-500">
+            {new Date(data.prices[0][0]).toLocaleDateString()}
+          </div>
+          <div className="absolute right-0 bottom-6 text-xs text-dark-500">
+            {new Date(data.prices[data.prices.length - 1][0]).toLocaleDateString()}
+          </div>
+        </>
+      )}
     </div>
   )
 }
 
 function OHLCChart({ data }: { data: OHLCData }) {
   const { candles, min, max } = useMemo(() => {
-    if (!data.ohlc.length) return { candles: [], min: 0, max: 0 }
+    // Defensive check for ohlc array
+    if (!data?.ohlc || !Array.isArray(data.ohlc) || data.ohlc.length === 0) {
+      return { candles: [], min: 0, max: 0 }
+    }
 
     const prices = data.ohlc.flatMap((c) => [c.open, c.high, c.low, c.close])
     const min = Math.min(...prices)
@@ -409,7 +429,8 @@ export function PriceSparkline({
   height?: number
   className?: string
 }) {
-  if (data.length < 2) return null
+  // Defensive check: ensure data is an array with enough points
+  if (!Array.isArray(data) || data.length < 2) return null
 
   const min = Math.min(...data)
   const max = Math.max(...data)

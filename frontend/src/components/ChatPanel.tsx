@@ -174,7 +174,7 @@ export default function ChatPanel({ conversationId, onConversationCreated }: Cha
   return (
     <div className="flex flex-col h-full">
       {/* Price Ticker */}
-      {prices && (
+      {prices && typeof prices === 'object' && (
         <div className="border-b border-gray-700/30 bg-gray-900/50 overflow-hidden">
           <div className="flex items-center gap-8 px-4 py-2.5 animate-marquee">
             {Object.entries(prices).map(([market, price]) => (

@@ -62,7 +62,7 @@ export default function PriceDisplay() {
     return <PriceDisplaySkeleton />
   }
 
-  if (!prices || Object.keys(prices).length === 0) {
+  if (!prices || typeof prices !== 'object' || Object.keys(prices).length === 0) {
     return null
   }
 

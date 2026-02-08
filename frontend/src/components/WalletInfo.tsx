@@ -459,7 +459,7 @@ export default function WalletInfo() {
                 </div>
               ))}
             </div>
-          ) : transactions && transactions.length > 0 ? (
+          ) : Array.isArray(transactions) && transactions.length > 0 ? (
             <div className="divide-y divide-dark-700/50 max-h-80 overflow-y-auto scrollbar-thin">
               {transactions.map((tx) => (
                 <TransactionItem key={tx.signature} transaction={tx} />

@@ -36,13 +36,13 @@ export default function Dashboard() {
 
   // Get unique markets for filter
   const markets = useMemo(() => {
-    if (!rules) return []
+    if (!rules || !Array.isArray(rules)) return []
     return [...new Set(rules.map(r => r.market))]
   }, [rules])
 
   // Filter rules
   const filteredRules = useMemo(() => {
-    if (!rules) return []
+    if (!rules || !Array.isArray(rules)) return []
 
     return rules.filter(rule => {
       // Status filter

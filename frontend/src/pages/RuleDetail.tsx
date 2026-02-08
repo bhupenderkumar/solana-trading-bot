@@ -114,7 +114,7 @@ export default function RuleDetail() {
       </div>
 
       {/* Trades */}
-      {trades && trades.length > 0 && (
+      {Array.isArray(trades) && trades.length > 0 && (
         <div className="card rounded-2xl overflow-hidden">
           <div className="p-6 border-b border-dark-700/50">
             <h2 className="text-xl font-semibold flex items-center gap-2 text-white">
@@ -206,7 +206,7 @@ export default function RuleDetail() {
                 </div>
               ))}
             </div>
-          ) : logs && logs.length > 0 ? (
+          ) : Array.isArray(logs) && logs.length > 0 ? (
             <div className="space-y-3 max-h-96 overflow-y-auto scrollbar-thin">
               {logs.map((log) => (
                 <div

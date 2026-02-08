@@ -90,11 +90,18 @@ export interface ChatResponse {
   message_id?: number
 }
 
+// Helper to ensure array response
+function ensureArray<T>(data: unknown): T[] {
+  if (Array.isArray(data)) return data
+  console.warn('Expected array but got:', typeof data, data)
+  return []
+}
+
 // Conversation API
 export const conversationApi = {
   list: async (): Promise<Conversation[]> => {
     const { data } = await api.get('/chat/conversations')
-    return data
+    return ensureArray<Conversation>(data)
   },
 
   create: async (title?: string): Promise<Conversation> => {
@@ -159,7 +166,7 @@ export const rulesApi = {
   list: async (status?: string): Promise<TradingRule[]> => {
     const params = status ? { status_filter: status } : {}
     const { data } = await api.get('/rules/', { params })
-    return data
+    return ensureArray<TradingRule>(data)
   },
 
   get: async (id: number): Promise<TradingRule> => {
@@ -178,12 +185,12 @@ export const rulesApi = {
 
   getLogs: async (id: number, limit = 50): Promise<JobLog[]> => {
     const { data } = await api.get(`/rules/${id}/logs`, { params: { limit } })
-    return data
+    return ensureArray<JobLog>(data)
   },
 
   getTrades: async (id: number): Promise<Trade[]> => {
     const { data } = await api.get(`/rules/${id}/trades`)
-    return data
+    return ensureArray<Trade>(data)
   },
 }
 
@@ -275,7 +282,7 @@ export const pricesApi = {
   // Historical price endpoints
   getSupportedMarkets: async (): Promise<SupportedMarket[]> => {
     const { data } = await api.get('/prices/supported-markets')
-    return data
+    return ensureArray<SupportedMarket>(data)
   },
 
   getHistoricalPrices: async (
@@ -286,7 +293,13 @@ export const pricesApi = {
     const { data } = await api.get(`/prices/history/${market}`, {
       params: { days, currency }
     })
-    return data
+    // Ensure prices array exists
+    return {
+      ...data,
+      prices: Array.isArray(data?.prices) ? data.prices : [],
+      market_caps: Array.isArray(data?.market_caps) ? data.market_caps : [],
+      total_volumes: Array.isArray(data?.total_volumes) ? data.total_volumes : [],
+    }
   },
 
   getPriceStatistics: async (
@@ -308,7 +321,11 @@ export const pricesApi = {
     const { data } = await api.get(`/prices/history/${market}/ohlc`, {
       params: { days, currency }
     })
-    return data
+    // Ensure ohlc array exists
+    return {
+      ...data,
+      ohlc: Array.isArray(data?.ohlc) ? data.ohlc : [],
+    }
   },
 
   getCurrentPriceWithHistory: async (
