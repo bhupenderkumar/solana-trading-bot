@@ -3,10 +3,13 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
+# Install Python and build tools for native dependencies
+RUN apk add --no-cache python3 make g++ linux-headers eudev-dev
+
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
+# Install dependencies (with native modules support)
 RUN npm install --legacy-peer-deps
 
 # Copy source files
