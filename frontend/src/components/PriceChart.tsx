@@ -5,8 +5,6 @@ import {
   TrendingDown,
   Activity,
   Calendar,
-  BarChart2,
-  Info,
   RefreshCw,
   ChevronDown,
 } from 'lucide-react'
@@ -47,7 +45,7 @@ export default function PriceChart({
     staleTime: 5 * 60 * 1000,
   })
 
-  const { data: ohlcData, isLoading: loadingOHLC } = useQuery({
+  const { data: ohlcData } = useQuery({
     queryKey: ['ohlcData', selectedMarket, days],
     queryFn: () => pricesApi.getOHLCData(selectedMarket, days),
     enabled: showOHLC && chartType === 'ohlc',

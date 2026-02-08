@@ -13,7 +13,7 @@ import {
   Menu,
   X,
   ChevronDown,
-  Activity
+  MessageSquare
 } from 'lucide-react'
 import { healthApi } from '../services/api'
 import { useAuth } from '../hooks/useAuth'
@@ -36,6 +36,7 @@ export default function Layout({ children }: LayoutProps) {
 
   const navItems = [
     { path: '/', icon: LayoutDashboard, label: 'Dashboard' },
+    { path: '/chat', icon: MessageSquare, label: 'Trading Assistant' },
     { path: '/history', icon: History, label: 'Trade History' },
     { path: '/settings', icon: Settings, label: 'Settings' },
   ]

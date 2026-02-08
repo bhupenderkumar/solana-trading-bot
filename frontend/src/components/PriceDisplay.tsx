@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { useState, useEffect, useRef } from 'react'
-import { TrendingUp, TrendingDown, Minus, RefreshCw } from 'lucide-react'
+import { TrendingUp, TrendingDown, Minus } from 'lucide-react'
 import { pricesApi, Prices } from '../services/api'
 import { PriceDisplaySkeleton } from './Skeleton'
 

@@ -3,14 +3,12 @@ import {
   LayoutDashboard,
   Target,
   Settings,
-  TrendingUp,
   History,
-  Bell,
   HelpCircle,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  MessageSquare
 } from 'lucide-react'
-import { useState } from 'react'
 
 interface SidebarProps {
   isCollapsed: boolean
@@ -22,6 +20,7 @@ export default function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
 
   const navItems = [
     { path: '/', icon: LayoutDashboard, label: 'Dashboard' },
+    { path: '/chat', icon: MessageSquare, label: 'Chat' },
     { path: '/rules', icon: Target, label: 'All Rules' },
     { path: '/history', icon: History, label: 'Trade History' },
     { path: '/settings', icon: Settings, label: 'Settings' },

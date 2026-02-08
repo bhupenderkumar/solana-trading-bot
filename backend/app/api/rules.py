@@ -17,10 +17,12 @@ router = APIRouter(prefix="/api/rules", tags=["rules"])
 # Pydantic schemas
 class RuleCreateRequest(BaseModel):
     input: str  # Natural language input
+    conversation_id: Optional[int] = None  # Link to conversation
 
 
 class RuleResponse(BaseModel):
     id: int
+    conversation_id: Optional[int]
     user_input: str
     parsed_summary: Optional[str]
     market: str
@@ -85,6 +87,7 @@ async def create_rule(request: RuleCreateRequest, db: AsyncSession = Depends(get
 
         # Create database record
         rule = TradingRule(
+            conversation_id=request.conversation_id,  # Link to conversation
             user_input=request.input,
             parsed_summary=parsed.summary,
             market=parsed.condition.market,

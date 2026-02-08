@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { rulesApi } from '../services/api'
+import { Link } from 'react-router-dom'
+import { rulesApi, conversationApi } from '../services/api'
 import StatsOverview from '../components/StatsOverview'
 import RuleInput from '../components/RuleInput'
 import RuleCard from '../components/RuleCard'
@@ -9,18 +10,28 @@ import PriceChart from '../components/PriceChart'
 import WalletInfo from '../components/WalletInfo'
 import SearchFilter from '../components/SearchFilter'
 import { RuleCardSkeleton } from '../components/Skeleton'
-import { Inbox, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react'
+import { 
+  Inbox, AlertCircle, ChevronDown, ChevronUp, MessageSquare, ArrowRight,
+  Activity, Zap, Pause, Clock, Sparkles
+} from 'lucide-react'
 
 export default function Dashboard() {
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<string | null>(null)
   const [marketFilter, setMarketFilter] = useState<string | null>(null)
   const [showPriceChart, setShowPriceChart] = useState(true)
+  const [showAllConversations, setShowAllConversations] = useState(false)
 
   const { data: rules, isLoading, error } = useQuery({
     queryKey: ['rules'],
     queryFn: () => rulesApi.list(),
     refetchInterval: 10000,
+  })
+
+  const { data: conversations } = useQuery({
+    queryKey: ['conversations'],
+    queryFn: conversationApi.list,
+    refetchInterval: 30000,
   })
 
   // Get unique markets for filter
@@ -94,6 +105,109 @@ export default function Dashboard() {
             showOHLC={true}
           />
         )}
+      </div>
+
+      {/* Trading Assistant Quick Access */}
+      <div className="card rounded-2xl overflow-hidden">
+        <div className="p-4 border-b border-dark-700 flex items-center justify-between bg-gradient-to-r from-primary-500/10 to-transparent">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-primary-500/20 rounded-xl">
+              <Sparkles className="h-5 w-5 text-primary-400" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-white">Trading Assistant</h2>
+              <p className="text-xs text-dark-400">AI-powered trading help & rule creation</p>
+            </div>
+          </div>
+          <Link 
+            to="/chat" 
+            className="btn-primary py-2 px-4 flex items-center gap-2 text-sm"
+          >
+            <MessageSquare className="h-4 w-4" />
+            Open Chat
+            <ArrowRight className="h-4 w-4" />
+          </Link>
+        </div>
+
+        {/* Recent Conversations */}
+        <div className="p-4">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-sm text-dark-400 font-medium">Recent Conversations</span>
+            {conversations && conversations.length > 3 && (
+              <button
+                onClick={() => setShowAllConversations(!showAllConversations)}
+                className="text-xs text-primary-400 hover:text-primary-300 flex items-center gap-1"
+              >
+                {showAllConversations ? 'Show less' : `Show all (${conversations.length})`}
+                <ChevronDown className={`h-3 w-3 transition-transform ${showAllConversations ? 'rotate-180' : ''}`} />
+              </button>
+            )}
+          </div>
+
+          {conversations && conversations.length > 0 ? (
+            <div className="space-y-2">
+              {(showAllConversations ? conversations : conversations.slice(0, 3)).map((conv) => (
+                <Link
+                  key={conv.id}
+                  to="/chat"
+                  className="block p-3 bg-dark-800/50 hover:bg-dark-700/50 rounded-xl border border-dark-700/50 hover:border-dark-600 transition-all group"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-white truncate group-hover:text-primary-400 transition-colors">
+                        {conv.title}
+                      </p>
+                      <div className="flex items-center gap-2 mt-1.5">
+                        <Clock className="h-3 w-3 text-dark-500" />
+                        <span className="text-xs text-dark-500">
+                          {new Date(conv.updated_at || conv.created_at).toLocaleDateString(undefined, {
+                            month: 'short',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </span>
+                        
+                        {/* Rule badges */}
+                        {conv.stats.total_rules > 0 && (
+                          <div className="flex items-center gap-1.5 ml-2">
+                            {conv.stats.active_rules > 0 && (
+                              <span className="inline-flex items-center gap-0.5 text-xs text-success-400 bg-success-500/10 px-1.5 py-0.5 rounded">
+                                <Activity className="h-2.5 w-2.5" />
+                                {conv.stats.active_rules}
+                              </span>
+                            )}
+                            {conv.stats.triggered_rules > 0 && (
+                              <span className="inline-flex items-center gap-0.5 text-xs text-primary-400 bg-primary-500/10 px-1.5 py-0.5 rounded">
+                                <Zap className="h-2.5 w-2.5" />
+                                {conv.stats.triggered_rules}
+                              </span>
+                            )}
+                            {conv.stats.paused_rules > 0 && (
+                              <span className="inline-flex items-center gap-0.5 text-xs text-warning-400 bg-warning-500/10 px-1.5 py-0.5 rounded">
+                                <Pause className="h-2.5 w-2.5" />
+                                {conv.stats.paused_rules}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <ArrowRight className="h-4 w-4 text-dark-500 group-hover:text-primary-400 group-hover:translate-x-1 transition-all flex-shrink-0" />
+                  </div>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-6 text-dark-400">
+              <MessageSquare className="h-8 w-8 mx-auto mb-2 opacity-50" />
+              <p className="text-sm">No conversations yet</p>
+              <Link to="/chat" className="text-xs text-primary-400 hover:text-primary-300 mt-1 inline-block">
+                Start your first chat →
+              </Link>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Rule Input */}

@@ -12,6 +12,7 @@ const api = axios.create({
 // Types
 export interface TradingRule {
   id: number
+  conversation_id: number | null
   user_input: string
   parsed_summary: string | null
   market: string
@@ -52,6 +53,32 @@ export interface Prices {
   [market: string]: number
 }
 
+// Conversation types
+export interface ConversationStats {
+  total_rules: number
+  active_rules: number
+  triggered_rules: number
+  paused_rules: number
+}
+
+export interface Conversation {
+  id: number
+  title: string
+  created_at: string
+  updated_at: string | null
+  stats: ConversationStats
+}
+
+export interface ChatMessage {
+  id: number
+  conversation_id: number
+  role: 'user' | 'assistant'
+  content: string
+  intent: string | null
+  data: Record<string, any> | null
+  created_at: string
+}
+
 // Chat API types
 export interface ChatResponse {
   intent: string
@@ -59,11 +86,45 @@ export interface ChatResponse {
   data?: Record<string, any> | null
   should_create_rule: boolean
   original_input?: string | null
+  conversation_id?: number
+  message_id?: number
+}
+
+// Conversation API
+export const conversationApi = {
+  list: async (): Promise<Conversation[]> => {
+    const { data } = await api.get('/chat/conversations')
+    return data
+  },
+
+  create: async (title?: string): Promise<Conversation> => {
+    const { data } = await api.post('/chat/conversations', { title })
+    return data
+  },
+
+  get: async (id: number): Promise<Conversation & { messages: ChatMessage[] }> => {
+    const { data } = await api.get(`/chat/conversations/${id}`)
+    return data
+  },
+
+  update: async (id: number, title: string): Promise<Conversation> => {
+    const { data } = await api.patch(`/chat/conversations/${id}`, { title })
+    return data
+  },
+
+  delete: async (id: number): Promise<void> => {
+    await api.delete(`/chat/conversations/${id}`)
+  },
 }
 
 export const chatApi = {
   send: async (message: string): Promise<ChatResponse> => {
     const { data } = await api.post('/chat/', { message })
+    return data
+  },
+
+  sendWithConversation: async (message: string, conversationId?: number): Promise<ChatResponse> => {
+    const { data } = await api.post('/chat/', { message, conversation_id: conversationId })
     return data
   },
 
@@ -87,6 +148,11 @@ export const chatApi = {
 export const rulesApi = {
   create: async (input: string): Promise<TradingRule> => {
     const { data } = await api.post('/rules/', { input })
+    return data
+  },
+
+  createWithConversation: async (input: string, conversationId?: number): Promise<TradingRule> => {
+    const { data } = await api.post('/rules/', { input, conversation_id: conversationId })
     return data
   },
 

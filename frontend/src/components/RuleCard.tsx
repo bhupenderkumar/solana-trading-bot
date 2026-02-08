@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { formatDistanceToNow } from 'date-fns'
-import { Play, Pause, Trash2, ExternalLink, CheckCircle, Clock, XCircle, Activity } from 'lucide-react'
+import { Play, Pause, Trash2, ExternalLink, CheckCircle, XCircle, Activity } from 'lucide-react'
 import { TradingRule, rulesApi } from '../services/api'
 import { useToast } from './Toast'
 

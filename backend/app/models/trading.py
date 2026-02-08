@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, JSON, Enum, ForeignKey, Float
+from sqlalchemy import Column, Integer, String, DateTime, Boolean, JSON, Enum, ForeignKey, Float, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.database import Base
@@ -25,10 +25,55 @@ class ActionType(str, enum.Enum):
     CLOSE_POSITION = "close_position"
 
 
+class MessageRole(str, enum.Enum):
+    USER = "user"
+    ASSISTANT = "assistant"
+    SYSTEM = "system"
+
+
+class Conversation(Base):
+    """Represents a chat conversation/session."""
+    __tablename__ = "conversations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String, default="New Chat")
+    
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    
+    # Relationships
+    messages = relationship("ChatMessage", back_populates="conversation", order_by="ChatMessage.created_at")
+    rules = relationship("TradingRule", back_populates="conversation")
+
+
+class ChatMessage(Base):
+    """Represents a single message in a conversation."""
+    __tablename__ = "chat_messages"
+
+    id = Column(Integer, primary_key=True, index=True)
+    conversation_id = Column(Integer, ForeignKey("conversations.id"), nullable=False)
+    
+    role = Column(Enum(MessageRole), nullable=False)
+    content = Column(Text, nullable=False)
+    
+    # Optional metadata
+    intent = Column(String)  # Detected intent for assistant messages
+    data = Column(JSON)  # Additional data (prices, rule info, etc.)
+    
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    # Relationships
+    conversation = relationship("Conversation", back_populates="messages")
+
+
 class TradingRule(Base):
     __tablename__ = "trading_rules"
 
     id = Column(Integer, primary_key=True, index=True)
+    conversation_id = Column(Integer, ForeignKey("conversations.id"), nullable=True)  # Link to conversation
+    
     user_input = Column(String, nullable=False)  # Original natural language input
     parsed_summary = Column(String)  # Human-readable summary of parsed rule
 
@@ -52,6 +97,7 @@ class TradingRule(Base):
     triggered_at = Column(DateTime(timezone=True))
 
     # Relationships
+    conversation = relationship("Conversation", back_populates="rules")
     job_logs = relationship("JobLog", back_populates="rule")
     trades = relationship("Trade", back_populates="rule")
 

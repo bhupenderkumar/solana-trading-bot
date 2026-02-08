@@ -4,11 +4,15 @@ Provides historical price data for SOL, BTC, ETH and other cryptocurrencies.
 """
 
 import httpx
+import certifi
 from typing import Dict, List, Optional, Any
 from datetime import datetime, timedelta
 import asyncio
 from functools import lru_cache
 import time
+import logging
+
+logger = logging.getLogger(__name__)
 
 # CoinGecko API base URL (free tier, no API key required)
 COINGECKO_API_BASE = "https://api.coingecko.com/api/v3"
@@ -21,6 +25,10 @@ MARKET_TO_COINGECKO_ID = {
     "BTC": "bitcoin",
     "ETH-PERP": "ethereum",
     "ETH": "ethereum",
+    "XRP-PERP": "ripple",
+    "XRP": "ripple",
+    "DOGE-PERP": "dogecoin",
+    "DOGE": "dogecoin",
     "BONK": "bonk",
     "JUP": "jupiter-exchange-solana",
     "WIF": "dogwifcoin",
@@ -31,7 +39,8 @@ MARKET_TO_COINGECKO_ID = {
 
 # Cache for price data (simple in-memory cache)
 _price_cache: Dict[str, Dict[str, Any]] = {}
-_cache_ttl = 300  # 5 minutes cache TTL
+_cache_ttl = 1800  # 30 minutes cache TTL for historical data
+_stale_cache_ttl = 86400  # 24 hours - use stale data if API fails
 
 
 def _get_cache_key(coin_id: str, days: int, currency: str) -> str:
@@ -45,6 +54,16 @@ def _is_cache_valid(cache_key: str) -> bool:
         return False
     cached_time = _price_cache[cache_key].get("cached_at", 0)
     return time.time() - cached_time < _cache_ttl
+
+
+def _get_stale_cache(cache_key: str) -> Optional[Dict]:
+    """Get stale cached data if available (for fallback)."""
+    if cache_key not in _price_cache:
+        return None
+    cached_time = _price_cache[cache_key].get("cached_at", 0)
+    if time.time() - cached_time < _stale_cache_ttl:
+        return _price_cache[cache_key].get("data")
+    return None
 
 
 async def get_historical_prices(
@@ -73,10 +92,11 @@ async def get_historical_prices(
     
     # Check cache first
     if _is_cache_valid(cache_key):
+        logger.debug(f"Returning cached price history for {market}")
         return _price_cache[cache_key]["data"]
     
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx.AsyncClient(timeout=30.0, verify=certifi.where()) as client:
             response = await client.get(
                 f"{COINGECKO_API_BASE}/coins/{coin_id}/market_chart",
                 params={
@@ -109,7 +129,13 @@ async def get_historical_prices(
             return result
             
     except httpx.HTTPStatusError as e:
+        logger.warning(f"CoinGecko API error {e.response.status_code} for {market}")
         if e.response.status_code == 429:
+            # Rate limited - try to return stale cache
+            stale = _get_stale_cache(cache_key)
+            if stale:
+                logger.info(f"Returning stale cache for {market} due to rate limit")
+                return stale
             raise Exception("Rate limited by CoinGecko API. Please try again later.")
         raise Exception(f"Failed to fetch price data: {e.response.status_code}")
     except httpx.RequestError as e:
@@ -185,7 +211,7 @@ async def get_ohlc_data(
     coin_id = MARKET_TO_COINGECKO_ID.get(market.upper(), market.lower())
     
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx.AsyncClient(timeout=30.0, verify=certifi.where()) as client:
             response = await client.get(
                 f"{COINGECKO_API_BASE}/coins/{coin_id}/ohlc",
                 params={
@@ -275,7 +301,7 @@ async def get_current_price_with_history(
     coin_id = MARKET_TO_COINGECKO_ID.get(market.upper(), market.lower())
     
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx.AsyncClient(timeout=30.0, verify=certifi.where()) as client:
             response = await client.get(
                 f"{COINGECKO_API_BASE}/coins/{coin_id}",
                 params={
@@ -335,6 +361,102 @@ def get_supported_markets() -> List[Dict[str, str]]:
         {"market": market, "coin_id": coin_id}
         for market, coin_id in MARKET_TO_COINGECKO_ID.items()
     ]
+
+
+async def compare_all_currencies(
+    days: int = 7,
+    currency: str = "usd"
+) -> Dict[str, Any]:
+    """
+    Compare all supported currencies and rank them by performance.
+    
+    Args:
+        days: Number of days to compare
+        currency: Currency for prices
+    
+    Returns:
+        Dictionary with ranked results showing best to worst performers
+    """
+    # Get the main trading markets - expanded list
+    markets_to_compare = ["SOL-PERP", "BTC-PERP", "ETH-PERP", "XRP-PERP", "DOGE-PERP"]
+    
+    # Fetch statistics for all markets
+    results = []
+    
+    for market in markets_to_compare:
+        try:
+            stats = await get_price_statistics(market, days, currency)
+            if "error" not in stats:
+                results.append({
+                    "market": market,
+                    "current_price": stats.get("current_price", 0),
+                    "start_price": stats.get("start_price", 0),
+                    "high_price": stats.get("high_price", 0),
+                    "low_price": stats.get("low_price", 0),
+                    "price_change": stats.get("price_change", 0),
+                    "price_change_percent": stats.get("price_change_percent", 0),
+                    "volatility": stats.get("volatility", 0)
+                })
+        except Exception as e:
+            # Skip markets that fail
+            continue
+    
+    # Sort by price change percent (best to worst)
+    results.sort(key=lambda x: x.get("price_change_percent", 0), reverse=True)
+    
+    return {
+        "days": days,
+        "currency": currency,
+        "results": results,
+        "best_performer": results[0] if results else None,
+        "worst_performer": results[-1] if results else None,
+        "fetched_at": datetime.utcnow().isoformat()
+    }
+
+
+async def scan_all_coins_profit(
+    days: int = 7,
+    currency: str = "usd"
+) -> Dict[str, Any]:
+    """
+    Scan all supported coins for profit/loss calculations.
+    Returns data suitable for showing LONG and SHORT profitability.
+    
+    Args:
+        days: Number of days to analyze
+        currency: Currency for prices
+    
+    Returns:
+        Dictionary with results for each coin including profit data
+    """
+    # Main trading markets to scan
+    markets_to_scan = ["SOL-PERP", "BTC-PERP", "ETH-PERP", "XRP-PERP", "DOGE-PERP"]
+    
+    results = []
+    
+    for market in markets_to_scan:
+        try:
+            stats = await get_price_statistics(market, days, currency)
+            if "error" not in stats and stats.get("start_price", 0) > 0:
+                results.append({
+                    "market": market,
+                    "current_price": stats.get("current_price", 0),
+                    "start_price": stats.get("start_price", 0),
+                    "high_price": stats.get("high_price", 0),
+                    "low_price": stats.get("low_price", 0),
+                    "price_change": stats.get("price_change", 0),
+                    "price_change_percent": stats.get("price_change_percent", 0),
+                })
+        except Exception as e:
+            logger.warning(f"Failed to get stats for {market}: {e}")
+            continue
+    
+    return {
+        "days": days,
+        "currency": currency,
+        "results": results,
+        "fetched_at": datetime.utcnow().isoformat()
+    }
 
 
 def clear_cache():
