@@ -1,0 +1,14 @@
+# Railway Nixpacks configuration for backend service
+# For frontend, create a separate Railway service with root directory: frontend
+
+[phases.setup]
+nixPkgs = ["python311", "postgresql"]
+
+[phases.install]
+cmds = ["cd backend && pip install -r requirements.txt"]
+
+[phases.build]
+cmds = ["echo 'Backend build complete'"]
+
+[start]
+cmd = "cd backend && python -m alembic upgrade head && python -m uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"
