@@ -2,13 +2,16 @@
 # For frontend, create a separate Railway service with root directory: frontend
 
 [phases.setup]
-nixPkgs = ["python311", "postgresql"]
+nixPkgs = ["python311Full", "postgresql"]
 
 [phases.install]
-cmds = ["cd backend && pip install -r requirements.txt"]
+cmds = ["python -m venv /opt/venv", "source /opt/venv/bin/activate && cd backend && pip install -r requirements.txt"]
 
 [phases.build]
 cmds = ["echo 'Backend build complete'"]
 
 [start]
-cmd = "cd backend && python -m alembic upgrade head && python -m uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"
+cmd = "source /opt/venv/bin/activate && cd backend && python -m alembic upgrade head && python -m uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"
+
+[variables]
+PIP_NO_WARN_SCRIPT_LOCATION = '0'
