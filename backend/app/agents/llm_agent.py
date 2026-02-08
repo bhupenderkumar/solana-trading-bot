@@ -295,8 +295,11 @@ class LLMAgent:
         context = f"Current price context: ${current_price}" if current_price else ""
         user_message = f"{context}\n\nUser instruction: {user_input}"
 
-        # Check for Azure OpenAI first (GitHub Enterprise)
-        if self.settings.use_azure_openai and self.settings.azure_openai_api_key:
+        # Check Groq first (fast inference)
+        if self.settings.use_groq and self.settings.groq_api_key:
+            return await self._parse_with_openai(user_message)  # Uses get_openai_client which handles Groq
+        # Check for Azure OpenAI (GitHub Enterprise)
+        elif self.settings.use_azure_openai and self.settings.azure_openai_api_key:
             return await self._parse_with_openai(user_message)
         # Then GitHub proxy
         elif self.settings.use_github_proxy:
@@ -306,7 +309,7 @@ class LLMAgent:
         elif self.settings.anthropic_api_key:
             return await self._parse_with_anthropic(user_message)
         else:
-            raise ValueError("No LLM configured. Set AZURE_OPENAI_API_KEY, OPENAI_API_KEY, or enable USE_GITHUB_PROXY")
+            raise ValueError("No LLM configured. Set GROQ_API_KEY, AZURE_OPENAI_API_KEY, OPENAI_API_KEY, or enable USE_GITHUB_PROXY")
 
     async def _parse_with_github_proxy(self, user_message: str) -> ParsedRule:
         """Parse using GitHub Models proxy (Claude via GitHub)."""
