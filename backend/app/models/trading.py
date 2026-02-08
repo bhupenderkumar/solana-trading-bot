@@ -54,7 +54,7 @@ class ChatMessage(Base):
     id = Column(Integer, primary_key=True, index=True)
     conversation_id = Column(Integer, ForeignKey("conversations.id"), nullable=False)
     
-    role = Column(Enum(MessageRole), nullable=False)
+    role = Column(Enum(MessageRole, values_callable=lambda x: [e.value for e in x]), nullable=False)
     content = Column(Text, nullable=False)
     
     # Optional metadata
@@ -79,17 +79,17 @@ class TradingRule(Base):
 
     # Parsed condition
     market = Column(String, nullable=False)  # e.g., "SOL-PERP"
-    condition_type = Column(Enum(ConditionType), nullable=False)
+    condition_type = Column(Enum(ConditionType, values_callable=lambda x: [e.value for e in x]), nullable=False)
     condition_value = Column(Float, nullable=False)  # e.g., 100.0 for price, 0.05 for 5%
     reference_price = Column(Float)  # Price at time of rule creation (for relative conditions)
 
     # Parsed action
-    action_type = Column(Enum(ActionType), nullable=False)
+    action_type = Column(Enum(ActionType, values_callable=lambda x: [e.value for e in x]), nullable=False)
     action_amount_percent = Column(Float, default=100.0)  # Percentage of position
     action_amount_usd = Column(Float)  # Or fixed USD amount
 
     # Status
-    status = Column(Enum(RuleStatus), default=RuleStatus.ACTIVE)
+    status = Column(Enum(RuleStatus, values_callable=lambda x: [e.value for e in x]), default=RuleStatus.ACTIVE)
 
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
