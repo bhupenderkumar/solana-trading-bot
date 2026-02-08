@@ -1,7 +1,7 @@
 from pydantic_settings import BaseSettings
+from pydantic import field_validator
 from typing import Optional
 from functools import lru_cache
-
 
 class Settings(BaseSettings):
     # Application
@@ -11,6 +11,16 @@ class Settings(BaseSettings):
 
     # Database
     database_url: str = "sqlite+aiosqlite:///./trading.db"
+    
+    @field_validator('database_url', mode='after')
+    @classmethod
+    def convert_postgres_url(cls, v: str) -> str:
+        """Convert postgresql:// to postgresql+asyncpg:// for async support"""
+        if v.startswith('postgresql://'):
+            return v.replace('postgresql://', 'postgresql+asyncpg://', 1)
+        if v.startswith('postgres://'):
+            return v.replace('postgres://', 'postgresql+asyncpg://', 1)
+        return v
 
     # Solana
     solana_rpc_url: str = "https://api.mainnet-beta.solana.com"
@@ -48,7 +58,6 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
-
 
 @lru_cache()
 def get_settings() -> Settings:
