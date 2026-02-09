@@ -4,8 +4,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --mode local",
+    "dev:local": "vite --mode local",
+    "dev:remote": "vite --mode development",
     "build": "tsc && vite build",
+    "build:dev": "tsc && vite build --mode development",
+    "build:prod": "tsc && vite build --mode production",
     "preview": "vite preview",
     "start": "serve dist -s -l ${PORT:-3000}",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0"

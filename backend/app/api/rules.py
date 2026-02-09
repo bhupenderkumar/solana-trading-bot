@@ -22,22 +22,42 @@ class RuleCreateRequest(BaseModel):
 
 class RuleResponse(BaseModel):
     id: int
-    conversation_id: Optional[int]
+    conversation_id: Optional[int] = None
     user_input: str
-    parsed_summary: Optional[str]
+    parsed_summary: Optional[str] = None
     market: str
     condition_type: str
     condition_value: float
-    reference_price: Optional[float]
+    reference_price: Optional[float] = None
     action_type: str
-    action_amount_percent: Optional[float]
-    action_amount_usd: Optional[float]
+    action_amount_percent: Optional[float] = None
+    action_amount_usd: Optional[float] = None
     status: str
     created_at: datetime
-    triggered_at: Optional[datetime]
+    triggered_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
+
+    @classmethod
+    def from_orm_rule(cls, rule):
+        """Convert SQLAlchemy model to Pydantic model with proper enum handling."""
+        return cls(
+            id=rule.id,
+            conversation_id=rule.conversation_id,
+            user_input=rule.user_input,
+            parsed_summary=rule.parsed_summary,
+            market=rule.market,
+            condition_type=rule.condition_type.value if hasattr(rule.condition_type, 'value') else str(rule.condition_type),
+            condition_value=rule.condition_value,
+            reference_price=rule.reference_price,
+            action_type=rule.action_type.value if hasattr(rule.action_type, 'value') else str(rule.action_type),
+            action_amount_percent=rule.action_amount_percent,
+            action_amount_usd=rule.action_amount_usd,
+            status=rule.status.value if hasattr(rule.status, 'value') else str(rule.status),
+            created_at=rule.created_at,
+            triggered_at=rule.triggered_at,
+        )
 
 
 class JobLogResponse(BaseModel):
@@ -107,7 +127,7 @@ async def create_rule(request: RuleCreateRequest, db: AsyncSession = Depends(get
         # Add monitoring job
         job_scheduler.add_rule_job(rule.id)
 
-        return rule
+        return RuleResponse.from_orm_rule(rule)
 
     except Exception as e:
         raise HTTPException(
@@ -128,7 +148,8 @@ async def list_rules(
         query = query.where(TradingRule.status == status_filter)
 
     result = await db.execute(query)
-    return result.scalars().all()
+    rules = result.scalars().all()
+    return [RuleResponse.from_orm_rule(r) for r in rules]
 
 
 @router.get("/{rule_id}", response_model=RuleResponse)
@@ -142,7 +163,7 @@ async def get_rule(rule_id: int, db: AsyncSession = Depends(get_db)):
     if not rule:
         raise HTTPException(status_code=404, detail="Rule not found")
 
-    return rule
+    return RuleResponse.from_orm_rule(rule)
 
 
 @router.delete("/{rule_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -188,7 +209,7 @@ async def toggle_rule(rule_id: int, db: AsyncSession = Depends(get_db)):
 
     await db.commit()
     await db.refresh(rule)
-    return rule
+    return RuleResponse.from_orm_rule(rule)
 
 
 @router.get("/{rule_id}/logs", response_model=List[JobLogResponse])
@@ -214,5 +235,20 @@ async def get_rule_trades(rule_id: int, db: AsyncSession = Depends(get_db)):
         select(Trade)
         .where(Trade.rule_id == rule_id)
         .order_by(Trade.executed_at.desc())
+    )
+    return result.scalars().all()
+
+
+# Centralized trades endpoint
+trades_router = APIRouter(prefix="/api/trades", tags=["trades"])
+
+
+@trades_router.get("/", response_model=List[TradeResponse])
+async def get_all_trades(limit: int = 100, db: AsyncSession = Depends(get_db)):
+    """Get all trades across all rules."""
+    result = await db.execute(
+        select(Trade)
+        .order_by(Trade.executed_at.desc())
+        .limit(limit)
     )
     return result.scalars().all()

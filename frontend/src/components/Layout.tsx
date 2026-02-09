@@ -35,9 +35,9 @@ export default function Layout({ children }: LayoutProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   const navItems = [
-    { path: '/', icon: LayoutDashboard, label: 'Dashboard' },
-    { path: '/chat', icon: MessageSquare, label: 'Trading Assistant' },
-    { path: '/history', icon: History, label: 'Trade History' },
+    { path: '/', icon: LayoutDashboard, label: 'Home' },
+    { path: '/chat', icon: MessageSquare, label: 'Chat', highlight: true },
+    { path: '/history', icon: History, label: 'History' },
     { path: '/settings', icon: Settings, label: 'Settings' },
   ]
 
@@ -61,7 +61,7 @@ export default function Layout({ children }: LayoutProps) {
                   </div>
                 </div>
                 <div className="hidden sm:block">
-                  <span className="text-lg font-bold tracking-tight text-gradient">SolTrader</span>
+                  <span className="text-lg font-bold tracking-tight text-indigo-400">SolTrader</span>
                   <span className="text-xs text-gray-500 block -mt-0.5">Intelligent Trading</span>
                 </div>
               </Link>
@@ -74,7 +74,7 @@ export default function Layout({ children }: LayoutProps) {
                     <NavLink
                       key={item.path}
                       to={item.path}
-                      className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-300 ${
+                      className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-300 ${
                         isActive
                           ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 shadow-inner-glow'
                           : 'text-gray-400 hover:text-white hover:bg-white/5'
@@ -90,8 +90,17 @@ export default function Layout({ children }: LayoutProps) {
 
             {/* Right side */}
             <div className="flex items-center gap-3">
+              {/* Primary Chat CTA Button */}
+              <Link
+                to="/chat"
+                className="btn-primary py-2 px-4 flex items-center gap-2 text-sm"
+              >
+                <MessageSquare className="h-4 w-4" />
+                <span className="hidden sm:inline">Open Chat</span>
+              </Link>
+
               {/* Status indicators */}
-              <div className="hidden sm:flex items-center gap-3 px-4 py-2.5 bg-gray-900/50 rounded-xl border border-gray-700/30">
+              <div className="hidden lg:flex items-center gap-3 px-4 py-2.5 bg-gray-900/50 rounded-xl border border-gray-700/30">
                 <div className="flex items-center gap-2" title="Drift Protocol Connection">
                   <div className={`status-dot ${health?.drift_connected ? 'status-dot-active' : 'status-dot-inactive'}`} />
                   <span className="text-xs text-gray-400 font-medium">Drift</span>

@@ -215,6 +215,14 @@ export const rulesApi = {
   },
 }
 
+// Trades API - centralized trades endpoint
+export const tradesApi = {
+  list: async (limit = 100): Promise<Trade[]> => {
+    const { data } = await api.get('/trades/', { params: { limit } })
+    return ensureArray<Trade>(data)
+  },
+}
+
 // Historical price types
 export interface HistoricalPriceData {
   market: string

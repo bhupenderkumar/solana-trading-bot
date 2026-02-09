@@ -725,7 +725,7 @@ Click **"Create Rule"** to confirm this order.""",
         elif intent.intent == "trading_rule":
             return ChatResponse(
                 intent="trading_rule",
-                response="I detected a trading rule. Please use the 'Create Rule' feature to set up automated trading rules.",
+                response="Got it! I'm creating your trading rule now...",
                 data={"should_create_rule": True, "original_input": user_input}
             )
 

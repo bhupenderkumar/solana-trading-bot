@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { rulesApi, conversationApi } from '../services/api'
+import { rulesApi, conversationApi, pricesApi } from '../services/api'
 import StatsOverview from '../components/StatsOverview'
 import RuleInput from '../components/RuleInput'
 import RuleCard from '../components/RuleCard'
@@ -12,14 +12,41 @@ import SearchFilter from '../components/SearchFilter'
 import { RuleCardSkeleton } from '../components/Skeleton'
 import { 
   Inbox, AlertCircle, ChevronDown, ChevronUp, MessageSquare, ArrowRight,
-  Activity, Zap, Pause, Clock, Sparkles
+  Activity, Zap, Clock, Sparkles, TrendingUp, Target, DollarSign, Bot
 } from 'lucide-react'
+
+const FEATURE_CARDS = [
+  {
+    title: 'Create Trading Rules',
+    description: 'Set automated buy/sell triggers using natural language',
+    example: '"Buy SOL when it drops below $80"',
+    icon: Target,
+    color: 'from-indigo-500/20 to-purple-600/10',
+    iconColor: 'text-indigo-400',
+  },
+  {
+    title: 'Track Market Prices',
+    description: 'Real-time prices for all major crypto assets',
+    example: '"What\'s the price of BTC?"',
+    icon: TrendingUp,
+    color: 'from-emerald-500/20 to-teal-600/10',
+    iconColor: 'text-emerald-400',
+  },
+  {
+    title: 'Analyze Performance',
+    description: 'Compare coins and calculate potential profits',
+    example: '"Which coin performed best this week?"',
+    icon: DollarSign,
+    color: 'from-amber-500/20 to-orange-600/10',
+    iconColor: 'text-amber-400',
+  },
+]
 
 export default function Dashboard() {
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<string | null>(null)
   const [marketFilter, setMarketFilter] = useState<string | null>(null)
-  const [showPriceChart, setShowPriceChart] = useState(true)
+  const [showDetails, setShowDetails] = useState(false)
   const [showAllConversations, setShowAllConversations] = useState(false)
 
   const { data: rules, isLoading, error } = useQuery({
@@ -32,6 +59,12 @@ export default function Dashboard() {
     queryKey: ['conversations'],
     queryFn: conversationApi.list,
     refetchInterval: 30000,
+  })
+
+  const { data: prices } = useQuery({
+    queryKey: ['prices'],
+    queryFn: pricesApi.getAll,
+    refetchInterval: 10000,
   })
 
   // Get unique markets for filter
@@ -69,101 +102,136 @@ export default function Dashboard() {
   const pausedRules = filteredRules.filter(r => r.status === 'paused')
   const triggeredRules = filteredRules.filter(r => r.status === 'triggered')
 
+  // Format price for display
+  const formatPrice = (price: number) => {
+    if (price >= 1000) return `$${price.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+    if (price >= 1) return `$${price.toFixed(2)}`
+    return `$${price.toFixed(4)}`
+  }
+
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 animate-in">
-        <div>
-          <h1 className="text-3xl font-bold text-gradient">Trading Dashboard</h1>
-          <p className="text-gray-400 mt-1.5">Monitor and manage your automated trading rules</p>
+    <div className="space-y-8">
+      {/* Hero Section with Chat CTA */}
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-gray-900/80 via-gray-900/60 to-gray-900/80 border border-gray-700/30 animate-in">
+        {/* Background decoration */}
+        <div className="absolute inset-0 overflow-hidden">
+          <div className="absolute -top-24 -right-24 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl" />
+          <div className="absolute -bottom-24 -left-24 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl" />
+        </div>
+
+        <div className="relative p-6 md:p-8">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+            <div className="max-w-xl">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="p-2 bg-indigo-500/15 rounded-lg border border-indigo-500/20">
+                  <Bot className="h-5 w-5 text-indigo-400" />
+                </div>
+                <span className="text-xs font-medium text-indigo-400 uppercase tracking-wider">AI Trading Assistant</span>
+              </div>
+              <h1 className="text-3xl md:text-4xl font-bold text-white mb-3">
+                Trade Smarter with <span className="text-indigo-400">Natural Language</span>
+              </h1>
+              <p className="text-gray-400 text-lg leading-relaxed">
+                Create automated trading rules, check prices, and analyze your portfolio — just by chatting.
+              </p>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-3">
+              <Link 
+                to="/chat" 
+                className="btn-primary py-3.5 px-6 flex items-center justify-center gap-2 text-base font-semibold"
+              >
+                <MessageSquare className="h-5 w-5" />
+                Open Chat
+                <ArrowRight className="h-5 w-5" />
+              </Link>
+            </div>
+          </div>
+
+          {/* Quick Price Ticker */}
+          {prices && typeof prices === 'object' && (
+            <div className="mt-6 pt-6 border-t border-gray-700/30">
+              <div className="flex items-center gap-6 overflow-x-auto pb-2 scrollbar-thin">
+                {Object.entries(prices).slice(0, 5).map(([market, price]) => (
+                  <div key={market} className="flex items-center gap-2 text-sm whitespace-nowrap">
+                    <span className="text-gray-500 font-medium">{market.replace('-PERP', '')}</span>
+                    <span className="text-white font-semibold">{formatPrice(price)}</span>
+                  </div>
+                ))}
+                <Link to="/chat" className="text-indigo-400 hover:text-indigo-300 text-xs font-medium flex items-center gap-1 transition-colors">
+                  View all prices
+                  <ArrowRight className="h-3 w-3" />
+                </Link>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Stats Overview */}
-      <div className="animate-in-delay-1">
+      {/* Feature Cards */}
+      <div className="grid md:grid-cols-3 gap-4 animate-in-delay-1">
+        {FEATURE_CARDS.map((card) => (
+          <Link
+            key={card.title}
+            to="/chat"
+            className={`card-interactive rounded-2xl p-5 bg-gradient-to-br ${card.color} group`}
+          >
+            <div className="flex items-center gap-3 mb-3">
+              <div className="p-2.5 bg-gray-900/50 rounded-xl border border-gray-700/30 group-hover:border-gray-600/50 transition-colors">
+                <card.icon className={`h-5 w-5 ${card.iconColor}`} />
+              </div>
+              <h3 className="font-semibold text-white">{card.title}</h3>
+            </div>
+            <p className="text-sm text-gray-400 mb-3">{card.description}</p>
+            <div className="text-xs bg-gray-900/40 px-3 py-2 rounded-lg text-gray-300 font-mono">
+              {card.example}
+            </div>
+          </Link>
+        ))}
+      </div>
+
+      {/* Quick Stats */}
+      <div className="animate-in-delay-2">
         <StatsOverview />
       </div>
 
-      {/* Wallet Info */}
-      <div className="animate-in-delay-2">
-        <WalletInfo />
-      </div>
-
-      {/* Price Display */}
-      <div className="animate-in-delay-3">
-        <PriceDisplay />
-      </div>
-
-      {/* Historical Price Chart - Collapsible */}
-      <div className="animate-in-delay-4">
-        <button
-          onClick={() => setShowPriceChart(!showPriceChart)}
-          className="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-all duration-300 mb-3 hover-lift"
-        >
-          {showPriceChart ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-          {showPriceChart ? 'Hide' : 'Show'} Historical Price Chart
-        </button>
-        {showPriceChart && (
-          <PriceChart
-            market="SOL-PERP"
-            defaultDays={20}
-            showStats={true}
-            showOHLC={true}
-          />
-        )}
-      </div>
-
-      {/* Trading Assistant Quick Access */}
-      <div className="card-interactive rounded-2xl overflow-hidden">
-        <div className="p-5 border-b border-gray-700/30 flex items-center justify-between bg-gradient-to-r from-indigo-500/10 via-purple-500/5 to-transparent">
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-indigo-500/15 rounded-xl border border-indigo-500/20">
-              <Sparkles className="h-5 w-5 text-indigo-400" />
+      {/* Recent Conversations Section */}
+      <div className="card rounded-2xl overflow-hidden animate-in-delay-3">
+        <div className="p-5 border-b border-gray-700/30 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-indigo-500/15 rounded-lg border border-indigo-500/20">
+              <Sparkles className="h-4 w-4 text-indigo-400" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-white">Trading Assistant</h2>
-              <p className="text-sm text-gray-400">AI-powered trading help & rule creation</p>
+              <h2 className="text-lg font-semibold text-white">Recent Activity</h2>
+              <p className="text-xs text-gray-500">Your recent conversations and rules</p>
             </div>
           </div>
           <Link 
             to="/chat" 
-            className="btn-primary py-2.5 px-5 flex items-center gap-2 text-sm"
+            className="btn-ghost py-2 px-4 flex items-center gap-2 text-sm"
           >
-            <MessageSquare className="h-4 w-4" />
-            Open Chat
+            View All
             <ArrowRight className="h-4 w-4" />
           </Link>
         </div>
 
-        {/* Recent Conversations */}
+        {/* Content */}
         <div className="p-5">
-          <div className="flex items-center justify-between mb-4">
-            <span className="text-sm text-gray-400 font-medium">Recent Conversations</span>
-            {conversations && conversations.length > 3 && (
-              <button
-                onClick={() => setShowAllConversations(!showAllConversations)}
-                className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1 transition-colors"
-              >
-                {showAllConversations ? 'Show less' : `Show all (${conversations.length})`}
-                <ChevronDown className={`h-3 w-3 transition-transform duration-300 ${showAllConversations ? 'rotate-180' : ''}`} />
-              </button>
-            )}
-          </div>
-
           {conversations && conversations.length > 0 ? (
             <div className="space-y-2">
               {(showAllConversations ? conversations : conversations.slice(0, 3)).map((conv) => (
                 <Link
                   key={conv.id}
                   to="/chat"
-                  className="block p-4 bg-gray-900/40 hover:bg-gray-800/50 rounded-xl border border-gray-700/30 hover:border-indigo-500/30 transition-all duration-300 group hover-lift"
+                  className="block p-4 bg-gray-900/40 hover:bg-gray-800/50 rounded-xl border border-gray-700/30 hover:border-indigo-500/30 transition-all duration-300 group"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-white truncate group-hover:text-indigo-400 transition-colors">
                         {conv.title}
                       </p>
-                      <div className="flex items-center gap-2 mt-2">
+                      <div className="flex items-center gap-2 mt-2 flex-wrap">
                         <Clock className="h-3 w-3 text-gray-500" />
                         <span className="text-xs text-gray-500">
                           {new Date(conv.updated_at || conv.created_at).toLocaleDateString(undefined, {
@@ -189,12 +257,6 @@ export default function Dashboard() {
                                 {conv.stats.triggered_rules}
                               </span>
                             )}
-                            {conv.stats.paused_rules > 0 && (
-                              <span className="badge-warning text-2xs">
-                                <Pause className="h-2.5 w-2.5" />
-                                {conv.stats.paused_rules}
-                              </span>
-                            )}
                           </div>
                         )}
                       </div>
@@ -203,18 +265,55 @@ export default function Dashboard() {
                   </div>
                 </Link>
               ))}
+              
+              {conversations.length > 3 && (
+                <button
+                  onClick={() => setShowAllConversations(!showAllConversations)}
+                  className="w-full text-center py-2 text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+                >
+                  {showAllConversations ? 'Show less' : `Show all ${conversations.length} conversations`}
+                </button>
+              )}
             </div>
           ) : (
-            <div className="text-center py-8 text-gray-400">
-              <MessageSquare className="h-10 w-10 mx-auto mb-3 opacity-40" />
-              <p className="text-sm">No conversations yet</p>
-              <Link to="/chat" className="text-sm text-indigo-400 hover:text-indigo-300 mt-2 inline-block transition-colors">
-                Start your first chat →
+            <div className="text-center py-8">
+              <MessageSquare className="h-10 w-10 mx-auto mb-3 text-gray-600" />
+              <p className="text-sm text-gray-400 mb-3">No conversations yet</p>
+              <Link to="/chat" className="btn-primary py-2 px-4 inline-flex items-center gap-2 text-sm">
+                <Sparkles className="h-4 w-4" />
+                Start Your First Chat
               </Link>
             </div>
           )}
         </div>
       </div>
+
+      {/* Expandable Details Section */}
+      <button
+        onClick={() => setShowDetails(!showDetails)}
+        className="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-all duration-300 mx-auto"
+      >
+        {showDetails ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+        {showDetails ? 'Hide' : 'Show'} detailed view (prices, wallet, chart)
+      </button>
+
+      {showDetails && (
+        <div className="space-y-6 animate-slide-down">
+          {/* Wallet Info */}
+          <WalletInfo />
+
+          {/* Price Display */}
+          <PriceDisplay />
+
+          {/* Historical Price Chart */}
+          <PriceChart
+            market="SOL-PERP"
+            defaultDays={20}
+            showStats={true}
+            showOHLC={true}
+          />
+        </div>
+      )}
 
       {/* Rule Input */}
       <RuleInput />

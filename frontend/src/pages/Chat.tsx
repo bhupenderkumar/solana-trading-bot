@@ -10,7 +10,7 @@ export default function Chat() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] -m-6 -mt-2">
+    <div className="flex h-[calc(100vh-8rem)] -mx-4 sm:-mx-6 rounded-2xl overflow-hidden border border-gray-700/30">
       {/* Sidebar */}
       <ChatSidebar
         selectedConversationId={selectedConversationId}
@@ -18,7 +18,7 @@ export default function Chat() {
       />
 
       {/* Main Chat Area */}
-      <div className="flex-1 bg-dark-900">
+      <div className="flex-1 bg-gray-900/50">
         <ChatPanel
           conversationId={selectedConversationId}
           onConversationCreated={handleConversationCreated}

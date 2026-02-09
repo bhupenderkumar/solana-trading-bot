@@ -31,7 +31,6 @@ services:
       - SOLANA_RPC_URL=${SOLANA_RPC_URL}
       - DRIFT_ENV=${DRIFT_ENV:-devnet}
       - WALLET_PRIVATE_KEY=${WALLET_PRIVATE_KEY}
-      # Groq (Recommended - fast & free)
       - USE_GROQ=${USE_GROQ:-false}
       - GROQ_API_KEY=${GROQ_API_KEY}
       - GROQ_MODEL=${GROQ_MODEL:-llama-3.3-70b-versatile}

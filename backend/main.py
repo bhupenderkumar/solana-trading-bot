@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import logging
 
-from app.api import rules_router, prices_router, auth_router
+from app.api import rules_router, prices_router, auth_router, trades_router
 from app.api.chat import router as chat_router
 from app.database import init_db
 from app.jobs import job_scheduler
@@ -72,6 +72,7 @@ app.include_router(rules_router)
 app.include_router(prices_router)
 app.include_router(auth_router)
 app.include_router(chat_router)
+app.include_router(trades_router)
 
 
 @app.get("/health")

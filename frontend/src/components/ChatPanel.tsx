@@ -125,10 +125,15 @@ export default function ChatPanel({ conversationId, onConversationCreated }: Cha
         intent: response.intent,
       }])
 
-      // Invalidate queries
+      // Invalidate conversations list (sidebar)
       queryClient.invalidateQueries({ queryKey: ['conversations'] })
+      
+      // Refetch conversation and clear local messages once server has the data
       if (conversationId || response.conversation_id) {
-        queryClient.invalidateQueries({ queryKey: ['conversation', conversationId || response.conversation_id] })
+        const convId = conversationId || response.conversation_id
+        queryClient.invalidateQueries({ queryKey: ['conversation', convId] })
+        // Clear local messages after a short delay to let server data load
+        setTimeout(() => setLocalMessages([]), 500)
       }
 
       if (response.should_create_rule && response.original_input) {
@@ -241,7 +246,7 @@ export default function ChatPanel({ conversationId, onConversationCreated }: Cha
               <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br from-indigo-500/20 to-purple-600/20 border border-indigo-500/20 mb-5">
                 <Sparkles className="h-10 w-10 text-indigo-400" />
               </div>
-              <h2 className="text-3xl font-bold text-gradient mb-3">Trading Assistant</h2>
+              <h2 className="text-3xl font-bold text-white mb-3">Trading Assistant</h2>
               <p className="text-gray-400 max-w-lg mx-auto text-base">
                 Create automated trading rules, check prices, or ask anything about your portfolio using natural language.
               </p>

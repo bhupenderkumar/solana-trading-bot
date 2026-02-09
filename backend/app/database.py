@@ -5,14 +5,24 @@ from app.config import get_settings
 
 settings = get_settings()
 
+# Build engine options based on database type
+engine_options = {
+    "echo": settings.debug,
+    "future": True,
+}
+
+# SQLite doesn't support connection pooling options
+if "sqlite" not in settings.database_url:
+    engine_options.update({
+        "pool_pre_ping": True,  # Check connection health before using
+        "pool_recycle": 300,    # Recycle connections every 5 minutes
+        "pool_size": 5,         # Number of connections to keep open
+        "max_overflow": 10,     # Additional connections when pool is full
+    })
+
 engine = create_async_engine(
     settings.database_url,
-    echo=settings.debug,
-    future=True,
-    pool_pre_ping=True,  # Check connection health before using
-    pool_recycle=300,    # Recycle connections every 5 minutes
-    pool_size=5,         # Number of connections to keep open
-    max_overflow=10,     # Additional connections when pool is full
+    **engine_options
 )
 
 async_session_maker = async_sessionmaker(

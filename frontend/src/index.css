@@ -31,10 +31,11 @@
   }
 
   body {
-    background: linear-gradient(135deg, var(--bg-primary) 0%, #0f172a 50%, #1a1033 100%);
+    background: #0a0e1a;
+    background-image: linear-gradient(135deg, #0a0e1a 0%, #0f172a 50%, #1a1033 100%);
     background-attachment: fixed;
     color: var(--text-primary);
-    @apply font-sans antialiased;
+    @apply font-sans antialiased min-h-screen;
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -244,11 +245,6 @@
       radial-gradient(at 0% 50%, rgba(6, 182, 212, 0.1) 0px, transparent 50%),
       radial-gradient(at 80% 50%, rgba(99, 102, 241, 0.1) 0px, transparent 50%),
       radial-gradient(at 0% 100%, rgba(139, 92, 246, 0.15) 0px, transparent 50%);
-  }
-
-  .text-gradient {
-    @apply bg-clip-text text-transparent;
-    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #06b6d4 100%);
   }
 
   .text-gradient-brand {
