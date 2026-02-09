@@ -13,7 +13,8 @@ import {
   Menu,
   X,
   ChevronDown,
-  MessageSquare
+  MessageSquare,
+  Plus
 } from 'lucide-react'
 import { healthApi } from '../services/api'
 import { useAuth } from '../hooks/useAuth'
@@ -30,12 +31,13 @@ export default function Layout({ children }: LayoutProps) {
     refetchInterval: 10000,
   })
 
-  const { token, wallet, logout, isLoading } = useAuth()
+  const { token, wallet, logout, isLoading, createWallet } = useAuth()
   const [showMenu, setShowMenu] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [creatingWallet, setCreatingWallet] = useState(false)
 
   const navItems = [
-    { path: '/', icon: LayoutDashboard, label: 'Home' },
+    { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
     { path: '/chat', icon: MessageSquare, label: 'Chat', highlight: true },
     { path: '/history', icon: History, label: 'History' },
     { path: '/settings', icon: Settings, label: 'Settings' },
@@ -111,6 +113,36 @@ export default function Layout({ children }: LayoutProps) {
                   <span className="text-xs text-gray-400 font-medium">Scheduler</span>
                 </div>
               </div>
+
+              {/* Wallet Connect Button */}
+              {wallet ? (
+                <div className="flex items-center gap-2 px-3 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
+                  <Wallet className="h-4 w-4 text-emerald-400" />
+                  <span className="text-sm font-medium text-emerald-400 font-mono hidden sm:block">
+                    {wallet.public_key.slice(0, 4)}...{wallet.public_key.slice(-4)}
+                  </span>
+                </div>
+              ) : (
+                <button
+                  onClick={async () => {
+                    setCreatingWallet(true)
+                    try {
+                      await createWallet()
+                    } catch (e) {
+                      console.error('Failed to create wallet:', e)
+                    } finally {
+                      setCreatingWallet(false)
+                    }
+                  }}
+                  disabled={creatingWallet}
+                  className="flex items-center gap-2 px-3 py-2 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 hover:border-indigo-500/30 rounded-xl text-indigo-400 transition-all duration-300"
+                >
+                  <Plus className="h-4 w-4" />
+                  <span className="text-sm font-medium hidden sm:block">
+                    {creatingWallet ? 'Creating...' : 'Connect Wallet'}
+                  </span>
+                </button>
+              )}
 
               {/* User/Wallet section */}
               <div className="relative">

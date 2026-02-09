@@ -4,6 +4,7 @@ import {
   MessageSquare, Plus, Trash2, Edit2, Check, X, Activity, Pause, Zap,
   ChevronDown, Target, Clock
 } from 'lucide-react'
+import { useWallet } from '@solana/wallet-adapter-react'
 import { conversationApi, Conversation, rulesApi } from '../services/api'
 import { useToast } from './Toast'
 
@@ -18,22 +19,26 @@ export default function ChatSidebar({ selectedConversationId, onSelectConversati
   const [showAllConversations, setShowAllConversations] = useState(false)
   const queryClient = useQueryClient()
   const toast = useToast()
+  
+  // Get connected wallet address
+  const { publicKey } = useWallet()
+  const walletAddress = publicKey?.toBase58()
 
   const { data: conversations, isLoading } = useQuery({
-    queryKey: ['conversations'],
-    queryFn: conversationApi.list,
+    queryKey: ['conversations', walletAddress],
+    queryFn: () => conversationApi.list(walletAddress),
     refetchInterval: 30000,
   })
 
-  // Get rules summary
+  // Get rules summary filtered by wallet
   const { data: rules } = useQuery({
-    queryKey: ['rules'],
-    queryFn: () => rulesApi.list(),
+    queryKey: ['rules', walletAddress],
+    queryFn: () => rulesApi.list(undefined, walletAddress),
     refetchInterval: 30000,
   })
 
   const createConversation = useMutation({
-    mutationFn: () => conversationApi.create(),
+    mutationFn: () => conversationApi.create(undefined, walletAddress),
     onSuccess: (newConversation) => {
       queryClient.invalidateQueries({ queryKey: ['conversations'] })
       onSelectConversation(newConversation.id)

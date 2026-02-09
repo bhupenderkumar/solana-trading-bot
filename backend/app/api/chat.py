@@ -88,6 +88,7 @@ async def process_secondary_intent(
 class ChatRequest(BaseModel):
     message: str
     conversation_id: Optional[int] = None  # If None, creates new conversation
+    wallet_address: Optional[str] = None  # Wallet address to bind conversation to
 
 
 class ChatApiResponse(BaseModel):
@@ -177,12 +178,16 @@ async def generate_title_from_message(message: str) -> str:
 # ============= Conversation Endpoints =============
 
 @router.get("/conversations", response_model=List[ConversationResponse])
-async def list_conversations(db: AsyncSession = Depends(get_db)):
-    """List all conversations with their stats."""
-    # Get all conversations
-    result = await db.execute(
-        select(Conversation).order_by(Conversation.updated_at.desc())
-    )
+async def list_conversations(
+    wallet_address: Optional[str] = None,
+    db: AsyncSession = Depends(get_db)
+):
+    """List all conversations with their stats, optionally filtered by wallet."""
+    # Get conversations, optionally filtered by wallet
+    query = select(Conversation).order_by(Conversation.updated_at.desc())
+    if wallet_address:
+        query = query.where(Conversation.wallet_address == wallet_address)
+    result = await db.execute(query)
     conversations = result.scalars().all()
     
     if not conversations:
@@ -243,10 +248,18 @@ async def list_conversations(db: AsyncSession = Depends(get_db)):
     return response
 
 
+class CreateConversationRequest(BaseModel):
+    title: Optional[str] = "New Chat"
+    wallet_address: Optional[str] = None
+
+
 @router.post("/conversations", response_model=ConversationResponse)
-async def create_conversation(db: AsyncSession = Depends(get_db)):
+async def create_conversation(
+    request: CreateConversationRequest = CreateConversationRequest(),
+    db: AsyncSession = Depends(get_db)
+):
     """Create a new conversation."""
-    conv = Conversation(title="New Chat")
+    conv = Conversation(title=request.title or "New Chat", wallet_address=request.wallet_address)
     db.add(conv)
     await db.flush()
     await db.refresh(conv)
@@ -396,10 +409,13 @@ async def chat(request: ChatRequest, db: AsyncSession = Depends(get_db)):
             conversation = result.scalar_one_or_none()
             if not conversation:
                 raise HTTPException(status_code=404, detail="Conversation not found")
+            # Update wallet if provided and not already set
+            if request.wallet_address and not conversation.wallet_address:
+                conversation.wallet_address = request.wallet_address
         else:
-            # Create new conversation
+            # Create new conversation with wallet_address
             title = await generate_title_from_message(request.message)
-            conversation = Conversation(title=title)
+            conversation = Conversation(title=title, wallet_address=request.wallet_address)
             db.add(conversation)
             await db.flush()
             await db.refresh(conversation)
@@ -569,12 +585,14 @@ async def chat(request: ChatRequest, db: AsyncSession = Depends(get_db)):
                         data=None
                     )
 
-        # Handle rules queries - fetch rules from database
+        # Handle rules queries - fetch rules from database, filtered by wallet
         if chat_response.intent == "rules_query" and chat_response.data:
             if chat_response.data.get("needs_fetch"):
-                rule_result = await db.execute(
-                    select(TradingRule).order_by(TradingRule.created_at.desc()).limit(10)
-                )
+                # Filter by wallet if available
+                rules_query = select(TradingRule).order_by(TradingRule.created_at.desc()).limit(10)
+                if request.wallet_address:
+                    rules_query = rules_query.where(TradingRule.wallet_address == request.wallet_address)
+                rule_result = await db.execute(rules_query)
                 rules = rule_result.scalars().all()
                 
                 if rules:

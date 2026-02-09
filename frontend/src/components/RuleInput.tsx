@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Send, Loader2, Sparkles, ChevronDown, Bot, MessageSquare } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
+import { useWallet } from '@solana/wallet-adapter-react'
 import { rulesApi, chatApi, ChatResponse } from '../services/api'
 import { useToast } from './Toast'
 
@@ -44,11 +45,16 @@ export default function RuleInput() {
   const [input, setInput] = useState('')
   const [showExamples, setShowExamples] = useState(false)
   const [chatResponse, setChatResponse] = useState<ChatResponse | null>(null)
+  const [isSending, setIsSending] = useState(false)
   const queryClient = useQueryClient()
   const toast = useToast()
+  
+  // Get connected wallet address
+  const { publicKey } = useWallet()
+  const walletAddress = publicKey?.toBase58()
 
   const createRule = useMutation({
-    mutationFn: rulesApi.create,
+    mutationFn: (ruleInput: string) => rulesApi.create(ruleInput, walletAddress),
     onSuccess: (newRule) => {
       queryClient.invalidateQueries({ queryKey: ['rules'] })
       setInput('')
@@ -61,7 +67,7 @@ export default function RuleInput() {
   })
 
   const sendChat = useMutation({
-    mutationFn: chatApi.send,
+    mutationFn: (message: string) => chatApi.send(message, walletAddress),
     onSuccess: (response) => {
       setChatResponse(response)
       if (response.should_create_rule && response.original_input) {
@@ -80,8 +86,10 @@ export default function RuleInput() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (input.trim()) {
+      setIsSending(true)
       setChatResponse(null)
       sendChat.mutate(input)
+      setTimeout(() => setIsSending(false), 600)
     }
   }
 
@@ -95,38 +103,40 @@ export default function RuleInput() {
       </div>
 
       <form onSubmit={handleSubmit}>
-        <div className="flex gap-3">
-          <div className="flex-1 relative">
-            <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Ask about prices, balance, or create a trading rule..."
-              className="input-lg"
-              disabled={isPending}
-            />
-            {input && (
-              <button
-                type="button"
-                onClick={() => setInput('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-dark-500 hover:text-white text-sm transition-colors"
-              >
-                Clear
-              </button>
-            )}
+        <div className={`chat-input-wrapper ${isSending ? 'is-sending' : ''}`}>
+          <div className="chat-input-inner flex gap-3 p-2">
+            <div className="flex-1 relative">
+              <input
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="Ask about prices, balance, or create a trading rule..."
+                className="w-full bg-transparent border-0 px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:ring-0"
+                disabled={isPending}
+              />
+              {input && (
+                <button
+                  type="button"
+                  onClick={() => setInput('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-dark-500 hover:text-white text-sm transition-colors"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+            <button
+              type="submit"
+              disabled={isPending || !input.trim()}
+              className={`send-button btn-primary px-6 py-3 ${isSending ? 'is-sending' : ''}`}
+            >
+              {isPending ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                <Send className="h-5 w-5" />
+              )}
+              Send
+            </button>
           </div>
-          <button
-            type="submit"
-            disabled={isPending || !input.trim()}
-            className="btn-primary px-6 py-3.5"
-          >
-            {isPending ? (
-              <Loader2 className="h-5 w-5 animate-spin" />
-            ) : (
-              <Send className="h-5 w-5" />
-            )}
-            Send
-          </button>
         </div>
 
         {(sendChat.isError || createRule.isError) && (

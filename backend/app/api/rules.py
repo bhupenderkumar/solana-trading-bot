@@ -18,11 +18,13 @@ router = APIRouter(prefix="/api/rules", tags=["rules"])
 class RuleCreateRequest(BaseModel):
     input: str  # Natural language input
     conversation_id: Optional[int] = None  # Link to conversation
+    wallet_address: Optional[str] = None  # Wallet address to bind rule to
 
 
 class RuleResponse(BaseModel):
     id: int
     conversation_id: Optional[int] = None
+    wallet_address: Optional[str] = None
     user_input: str
     parsed_summary: Optional[str] = None
     market: str
@@ -45,6 +47,7 @@ class RuleResponse(BaseModel):
         return cls(
             id=rule.id,
             conversation_id=rule.conversation_id,
+            wallet_address=rule.wallet_address,
             user_input=rule.user_input,
             parsed_summary=rule.parsed_summary,
             market=rule.market,
@@ -108,6 +111,7 @@ async def create_rule(request: RuleCreateRequest, db: AsyncSession = Depends(get
         # Create database record
         rule = TradingRule(
             conversation_id=request.conversation_id,  # Link to conversation
+            wallet_address=request.wallet_address,  # Link to wallet
             user_input=request.input,
             parsed_summary=parsed.summary,
             market=parsed.condition.market,
@@ -139,13 +143,17 @@ async def create_rule(request: RuleCreateRequest, db: AsyncSession = Depends(get
 @router.get("/", response_model=List[RuleResponse])
 async def list_rules(
     status_filter: Optional[str] = None,
+    wallet_address: Optional[str] = None,
     db: AsyncSession = Depends(get_db)
 ):
-    """List all trading rules."""
+    """List all trading rules, optionally filtered by wallet."""
     query = select(TradingRule).order_by(TradingRule.created_at.desc())
 
     if status_filter:
         query = query.where(TradingRule.status == status_filter)
+    
+    if wallet_address:
+        query = query.where(TradingRule.wallet_address == wallet_address)
 
     result = await db.execute(query)
     rules = result.scalars().all()
@@ -244,11 +252,14 @@ trades_router = APIRouter(prefix="/api/trades", tags=["trades"])
 
 
 @trades_router.get("/", response_model=List[TradeResponse])
-async def get_all_trades(limit: int = 100, db: AsyncSession = Depends(get_db)):
-    """Get all trades across all rules."""
-    result = await db.execute(
-        select(Trade)
-        .order_by(Trade.executed_at.desc())
-        .limit(limit)
-    )
+async def get_all_trades(
+    limit: int = 100, 
+    wallet_address: Optional[str] = None,
+    db: AsyncSession = Depends(get_db)
+):
+    """Get all trades across all rules, optionally filtered by wallet."""
+    query = select(Trade).order_by(Trade.executed_at.desc()).limit(limit)
+    if wallet_address:
+        query = query.where(Trade.wallet_address == wallet_address)
+    result = await db.execute(query)
     return result.scalars().all()

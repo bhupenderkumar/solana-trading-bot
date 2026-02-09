@@ -37,6 +37,7 @@ class Conversation(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String, default="New Chat")
+    wallet_address = Column(String, index=True, nullable=True)  # Bind conversation to wallet
     
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -73,6 +74,7 @@ class TradingRule(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     conversation_id = Column(Integer, ForeignKey("conversations.id"), nullable=True)  # Link to conversation
+    wallet_address = Column(String, index=True, nullable=True)  # Bind rule to wallet
     
     user_input = Column(String, nullable=False)  # Original natural language input
     parsed_summary = Column(String)  # Human-readable summary of parsed rule
@@ -124,6 +126,7 @@ class Trade(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     rule_id = Column(Integer, ForeignKey("trading_rules.id"))
+    wallet_address = Column(String, index=True, nullable=True)  # Bind trade to wallet
 
     # Trade details
     market = Column(String, nullable=False)

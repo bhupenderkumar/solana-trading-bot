@@ -55,3 +55,4 @@ secrets.json
 tmp/
 temp/
 *.tmp
+.vite/

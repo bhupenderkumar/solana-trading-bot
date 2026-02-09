@@ -6,6 +6,7 @@ import {
   DollarSign, TrendingUp, Wallet, HelpCircle, Target, ArrowRight, RefreshCw
 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
+import { useWallet } from '@solana/wallet-adapter-react'
 import { rulesApi, chatApi, conversationApi, pricesApi, TradingRule } from '../services/api'
 import { useToast } from './Toast'
 
@@ -60,10 +61,16 @@ interface ChatPanelProps {
 export default function ChatPanel({ conversationId, onConversationCreated }: ChatPanelProps) {
   const [input, setInput] = useState('')
   const [localMessages, setLocalMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string; intent?: string; ruleCreated?: TradingRule }>>([])
+  const [isSending, setIsSending] = useState(false)
+  const [chatHighlight, setChatHighlight] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const queryClient = useQueryClient()
   const toast = useToast()
+  
+  // Get connected wallet address
+  const { publicKey } = useWallet()
+  const walletAddress = publicKey?.toBase58()
 
   // Fetch prices for ticker
   const { data: prices } = useQuery({
@@ -90,7 +97,7 @@ export default function ChatPanel({ conversationId, onConversationCreated }: Cha
   }, [conversation?.messages, localMessages])
 
   const createRule = useMutation({
-    mutationFn: (input: string) => rulesApi.createWithConversation(input, conversationId || undefined),
+    mutationFn: (input: string) => rulesApi.createWithConversation(input, conversationId || undefined, walletAddress),
     onSuccess: (newRule) => {
       queryClient.invalidateQueries({ queryKey: ['rules'] })
       queryClient.invalidateQueries({ queryKey: ['conversations'] })
@@ -111,7 +118,7 @@ export default function ChatPanel({ conversationId, onConversationCreated }: Cha
   })
 
   const sendChat = useMutation({
-    mutationFn: (message: string) => chatApi.sendWithConversation(message, conversationId || undefined),
+    mutationFn: (message: string) => chatApi.sendWithConversation(message, conversationId || undefined, walletAddress),
     onSuccess: (response) => {
       // If a new conversation was created, notify parent
       if (response.conversation_id && !conversationId && onConversationCreated) {
@@ -131,9 +138,10 @@ export default function ChatPanel({ conversationId, onConversationCreated }: Cha
       // Refetch conversation and clear local messages once server has the data
       if (conversationId || response.conversation_id) {
         const convId = conversationId || response.conversation_id
-        queryClient.invalidateQueries({ queryKey: ['conversation', convId] })
-        // Clear local messages after a short delay to let server data load
-        setTimeout(() => setLocalMessages([]), 500)
+        // Refetch and clear local messages after server data is loaded
+        queryClient.refetchQueries({ queryKey: ['conversation', convId] }).then(() => {
+          setLocalMessages([])
+        })
       }
 
       if (response.should_create_rule && response.original_input) {
@@ -148,16 +156,30 @@ export default function ChatPanel({ conversationId, onConversationCreated }: Cha
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (input.trim() && !isPending) {
+      setIsSending(true)
+      setChatHighlight(true)
       setLocalMessages(prev => [...prev, { role: 'user', content: input }])
       sendChat.mutate(input)
       setInput('')
+      // Reset animation states
+      setTimeout(() => {
+        setIsSending(false)
+        setChatHighlight(false)
+      }, 600)
     }
   }
 
   const handleQuickAction = (message: string) => {
+    setIsSending(true)
+    setChatHighlight(true)
     setLocalMessages(prev => [...prev, { role: 'user', content: message }])
     sendChat.mutate(message)
     inputRef.current?.focus()
+    // Reset animation states
+    setTimeout(() => {
+      setIsSending(false)
+      setChatHighlight(false)
+    }, 600)
   }
 
   const isPending = sendChat.isPending || createRule.isPending
@@ -299,11 +321,12 @@ export default function ChatPanel({ conversationId, onConversationCreated }: Cha
             </div>
           </div>
         ) : (
-          <div className="p-4 space-y-4">
+          <div className={`p-4 space-y-4 ${chatHighlight ? 'chat-highlight' : ''}`}>
             {allMessages.map((msg, idx) => (
               <div
                 key={idx}
-                className={`flex gap-3 message-enter ${msg.role === 'user' ? 'justify-end' : ''}`}
+                className={`flex gap-3 ${msg.role === 'user' ? 'justify-end message-enter-user' : 'message-enter-assistant'}`}
+                style={{ animationDelay: `${Math.min(idx * 0.05, 0.3)}s` }}
               >
                 {msg.role === 'assistant' && (
                   <div className="flex-shrink-0 p-2.5 bg-indigo-500/15 rounded-xl h-fit border border-indigo-500/20">
@@ -312,10 +335,10 @@ export default function ChatPanel({ conversationId, onConversationCreated }: Cha
                 )}
                 <div className="max-w-[80%] space-y-2">
                   <div
-                    className={`rounded-2xl p-4 ${
+                    className={`rounded-2xl p-4 message-bubble ${
                       msg.role === 'user'
-                        ? 'bg-indigo-500/15 border border-indigo-500/20'
-                        : 'bg-gray-800/50 border border-gray-700/30'
+                        ? 'bg-indigo-500/15 border border-indigo-500/20 message-bubble-user'
+                        : 'bg-gray-800/50 border border-gray-700/30 message-bubble-assistant'
                     }`}
                   >
                     {'intent' in msg && msg.intent && msg.intent !== 'general_chat' && (
@@ -389,30 +412,32 @@ export default function ChatPanel({ conversationId, onConversationCreated }: Cha
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="flex gap-3">
-          <input
-            ref={inputRef}
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder={allMessages.length === 0 
-              ? "Ask anything or create a trading rule..." 
-              : "Type your message..."}
-            className="input-lg flex-1"
-            disabled={isPending}
-          />
-          <button
-            type="submit"
-            disabled={isPending || !input.trim()}
-            className="btn-primary px-6 py-3 flex items-center gap-2"
-          >
-            {isPending ? (
-              <Loader2 className="h-5 w-5 animate-spin" />
-            ) : (
-              <Send className="h-5 w-5" />
-            )}
-          </button>
-        </form>
+        <div className={`chat-input-wrapper ${isSending ? 'is-sending' : ''}`}>
+          <form onSubmit={handleSubmit} className="chat-input-inner flex gap-3 p-2">
+            <input
+              ref={inputRef}
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder={allMessages.length === 0 
+                ? "Ask anything or create a trading rule..." 
+                : "Type your message..."}
+              className="flex-1 bg-transparent border-0 px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:ring-0"
+              disabled={isPending}
+            />
+            <button
+              type="submit"
+              disabled={isPending || !input.trim()}
+              className={`send-button btn-primary px-6 py-3 flex items-center gap-2 ${isSending ? 'is-sending' : ''}`}
+            >
+              {isPending ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                <Send className="h-5 w-5" />
+              )}
+            </button>
+          </form>
+        </div>
 
         {(sendChat.isError || createRule.isError) && (
           <p className="text-red-400 mt-3 text-sm bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-2.5">

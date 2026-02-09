@@ -34,6 +34,7 @@ api.interceptors.response.use(
 export interface TradingRule {
   id: number
   conversation_id: number | null
+  wallet_address: string | null
   user_input: string
   parsed_summary: string | null
   market: string
@@ -120,13 +121,14 @@ function ensureArray<T>(data: unknown): T[] {
 
 // Conversation API
 export const conversationApi = {
-  list: async (): Promise<Conversation[]> => {
-    const { data } = await api.get('/chat/conversations')
+  list: async (walletAddress?: string): Promise<Conversation[]> => {
+    const params = walletAddress ? { wallet_address: walletAddress } : {}
+    const { data } = await api.get('/chat/conversations', { params })
     return ensureArray<Conversation>(data)
   },
 
-  create: async (title?: string): Promise<Conversation> => {
-    const { data } = await api.post('/chat/conversations', { title })
+  create: async (title?: string, walletAddress?: string): Promise<Conversation> => {
+    const { data } = await api.post('/chat/conversations', { title, wallet_address: walletAddress })
     return data
   },
 
@@ -146,13 +148,17 @@ export const conversationApi = {
 }
 
 export const chatApi = {
-  send: async (message: string): Promise<ChatResponse> => {
-    const { data } = await api.post('/chat/', { message })
+  send: async (message: string, walletAddress?: string): Promise<ChatResponse> => {
+    const { data } = await api.post('/chat/', { message, wallet_address: walletAddress })
     return data
   },
 
-  sendWithConversation: async (message: string, conversationId?: number): Promise<ChatResponse> => {
-    const { data } = await api.post('/chat/', { message, conversation_id: conversationId })
+  sendWithConversation: async (message: string, conversationId?: number, walletAddress?: string): Promise<ChatResponse> => {
+    const { data } = await api.post('/chat/', { 
+      message, 
+      conversation_id: conversationId,
+      wallet_address: walletAddress 
+    })
     return data
   },
 
@@ -174,18 +180,24 @@ export const chatApi = {
 
 // API functions
 export const rulesApi = {
-  create: async (input: string): Promise<TradingRule> => {
-    const { data } = await api.post('/rules/', { input })
+  create: async (input: string, walletAddress?: string): Promise<TradingRule> => {
+    const { data } = await api.post('/rules/', { input, wallet_address: walletAddress })
     return data
   },
 
-  createWithConversation: async (input: string, conversationId?: number): Promise<TradingRule> => {
-    const { data } = await api.post('/rules/', { input, conversation_id: conversationId })
+  createWithConversation: async (input: string, conversationId?: number, walletAddress?: string): Promise<TradingRule> => {
+    const { data } = await api.post('/rules/', { 
+      input, 
+      conversation_id: conversationId,
+      wallet_address: walletAddress 
+    })
     return data
   },
 
-  list: async (status?: string): Promise<TradingRule[]> => {
-    const params = status ? { status_filter: status } : {}
+  list: async (status?: string, walletAddress?: string): Promise<TradingRule[]> => {
+    const params: Record<string, string> = {}
+    if (status) params.status_filter = status
+    if (walletAddress) params.wallet_address = walletAddress
     const { data } = await api.get('/rules/', { params })
     return ensureArray<TradingRule>(data)
   },
@@ -217,8 +229,10 @@ export const rulesApi = {
 
 // Trades API - centralized trades endpoint
 export const tradesApi = {
-  list: async (limit = 100): Promise<Trade[]> => {
-    const { data } = await api.get('/trades/', { params: { limit } })
+  list: async (limit = 100, walletAddress?: string): Promise<Trade[]> => {
+    const params: Record<string, string | number> = { limit }
+    if (walletAddress) params.wallet_address = walletAddress
+    const { data } = await api.get('/trades/', { params })
     return ensureArray<Trade>(data)
   },
 }

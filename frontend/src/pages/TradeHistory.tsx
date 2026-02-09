@@ -2,21 +2,26 @@ import { useQuery } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import { Link } from 'react-router-dom'
 import { ExternalLink, ArrowUpRight, ArrowDownRight, History } from 'lucide-react'
+import { useWallet } from '@solana/wallet-adapter-react'
 import { tradesApi, rulesApi, Trade } from '../services/api'
 import { TableSkeleton } from '../components/Skeleton'
 
 export default function TradeHistory() {
-  // Fetch all trades directly from the centralized endpoint
+  // Get connected wallet address
+  const { publicKey } = useWallet()
+  const walletAddress = publicKey?.toBase58()
+  
+  // Fetch all trades directly from the centralized endpoint, filtered by wallet
   const { data: trades, isLoading } = useQuery({
-    queryKey: ['trades'],
-    queryFn: () => tradesApi.list(100),
+    queryKey: ['trades', walletAddress],
+    queryFn: () => tradesApi.list(100, walletAddress),
     refetchInterval: 30000,
   })
 
-  // Fetch rules to get their summaries for display
+  // Fetch rules to get their summaries for display, filtered by wallet
   const { data: rules } = useQuery({
-    queryKey: ['rules'],
-    queryFn: () => rulesApi.list(),
+    queryKey: ['rules', walletAddress],
+    queryFn: () => rulesApi.list(undefined, walletAddress),
   })
 
   // Create a map of rule_id to rule for quick lookup
