@@ -92,16 +92,19 @@ class TradingRule(Base):
 
     # Status
     status = Column(Enum(RuleStatus, values_callable=lambda x: [e.value for e in x]), default=RuleStatus.ACTIVE)
+    
+    # Analysis data - stores historical data, predictions, market analysis when rule was created
+    analysis_data = Column(JSON, nullable=True)
 
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     triggered_at = Column(DateTime(timezone=True))
 
-    # Relationships
+    # Relationships - cascade delete for job_logs and trades
     conversation = relationship("Conversation", back_populates="rules")
-    job_logs = relationship("JobLog", back_populates="rule")
-    trades = relationship("Trade", back_populates="rule")
+    job_logs = relationship("JobLog", back_populates="rule", cascade="all, delete-orphan")
+    trades = relationship("Trade", back_populates="rule", cascade="all, delete-orphan")
 
 
 class JobLog(Base):

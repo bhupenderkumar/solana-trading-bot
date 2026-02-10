@@ -613,6 +613,8 @@ async def chat(request: ChatRequest, db: AsyncSession = Depends(get_db)):
         # Determine if it's a trading rule or trading action (both can create rules)
         should_create_rule = False
         original_input = None
+        analysis_data = None
+        
         if chat_response.intent in ("trading_rule", "trading_action"):
             # Check if data explicitly says to create a rule
             if chat_response.data and chat_response.data.get("should_create_rule"):
@@ -622,6 +624,120 @@ async def chat(request: ChatRequest, db: AsyncSession = Depends(get_db)):
                 # Default for trading_rule intent
                 should_create_rule = True
                 original_input = request.message
+            
+            # Build comprehensive analysis when creating a rule
+            if should_create_rule:
+                try:
+                    # Detect market from user input
+                    rule_market = "SOL-PERP"  # Default
+                    lower_input = (original_input or request.message).lower()
+                    for m in ["BTC-PERP", "ETH-PERP", "SOL-PERP", "BONK-PERP", "WIF-PERP", "DOGE-PERP", "APT-PERP", "ARB-PERP"]:
+                        if m.split("-")[0].lower() in lower_input:
+                            rule_market = m
+                            break
+                    
+                    symbol = rule_market.replace("-PERP", "")
+                    
+                    # Get current price
+                    current_price = prices.get(rule_market) or await drift_service.get_perp_market_price(rule_market)
+                    
+                    # Fetch historical data (7-day stats)
+                    historical_stats = None
+                    try:
+                        historical_stats = await price_history_service.get_price_statistics(rule_market, 7)
+                    except:
+                        pass
+                    
+                    # Fetch market analysis from web search
+                    market_search = None
+                    try:
+                        price_change = historical_stats.get("price_change_percent") if historical_stats else None
+                        market_search = await web_search_service.search_and_summarize(
+                            coin=symbol,
+                            question=f"What is the current market outlook for {symbol}?",
+                            current_price=current_price,
+                            price_change=price_change
+                        )
+                    except:
+                        pass
+                    
+                    # Build comprehensive response
+                    response_parts = [f"📊 **Creating your trading rule for {symbol}**\n"]
+                    
+                    # Current price section
+                    response_parts.append(f"**Current Price:** ${current_price:,.2f}" if current_price else "")
+                    
+                    # Historical data section
+                    if historical_stats:
+                        change_pct = historical_stats.get("price_change_percent", 0)
+                        high_7d = historical_stats.get("high_price", 0)
+                        low_7d = historical_stats.get("low_price", 0)
+                        direction = "📈" if change_pct >= 0 else "📉"
+                        response_parts.append(f"\n**7-Day Performance:** {direction} {'+' if change_pct >= 0 else ''}{change_pct:.2f}%")
+                        response_parts.append(f"**7-Day Range:** ${low_7d:,.2f} - ${high_7d:,.2f}")
+                    
+                    # Market analysis section
+                    if market_search and market_search.get("summary"):
+                        response_parts.append(f"\n**Market Analysis:**\n{market_search.get('summary')}")
+                    
+                    # News section
+                    if market_search and market_search.get("results"):
+                        response_parts.append("\n**Recent News:**")
+                        for r in market_search["results"][:3]:
+                            title = r.get("title", "")
+                            if title:
+                                response_parts.append(f"• {title}")
+                    
+                    # Prediction/Judgment based on analysis
+                    prediction = None
+                    if historical_stats:
+                        change_pct = historical_stats.get("price_change_percent", 0)
+                        volatility = historical_stats.get("volatility", 0)
+                        if change_pct > 5:
+                            prediction = "🔮 **Outlook:** Strong bullish momentum. Price has been rising significantly."
+                        elif change_pct > 2:
+                            prediction = "🔮 **Outlook:** Moderate bullish trend. Watch for potential continuation."
+                        elif change_pct < -5:
+                            prediction = "🔮 **Outlook:** Strong bearish pressure. Consider risk management."
+                        elif change_pct < -2:
+                            prediction = "🔮 **Outlook:** Moderate downtrend. Market may be seeking support."
+                        else:
+                            prediction = "🔮 **Outlook:** Consolidating. Price is ranging with no clear direction."
+                        if volatility and volatility > 5:
+                            prediction += " ⚠️ High volatility detected."
+                    
+                    if prediction:
+                        response_parts.append(f"\n{prediction}")
+                    
+                    response_parts.append("\n\n✅ *Confirm the rule details below to create it.*")
+                    
+                    # Build analysis_data for storage with rule
+                    analysis_data = {
+                        "current_price": current_price,
+                        "historical_stats": historical_stats,
+                        "market_search": {
+                            "summary": market_search.get("summary") if market_search else None,
+                            "results": market_search.get("results", [])[:3] if market_search else []
+                        },
+                        "prediction": prediction,
+                        "analyzed_at": datetime.utcnow().isoformat()
+                    }
+                    
+                    # Update the response
+                    chat_response = ChatResponse(
+                        intent="trading_rule",
+                        response="\n".join(filter(None, response_parts)),
+                        data={
+                            "should_create_rule": True,
+                            "original_input": original_input or request.message,
+                            "market": rule_market,
+                            "analysis_data": analysis_data
+                        }
+                    )
+                    
+                except Exception as e:
+                    # Fallback to simple response on error
+                    pass
 
         # Handle compound queries - process secondary intents and combine responses
         final_response = chat_response.response

@@ -1,20 +1,23 @@
-import { ReactNode, useState } from 'react'
+import { ReactNode, useState, useEffect } from 'react'
 import { Link, NavLink, useLocation } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
+import { motion, AnimatePresence } from 'framer-motion'
 import {
   Zap,
   AlertTriangle,
   Wallet,
   LogOut,
-  User,
   LayoutDashboard,
   History,
   Settings,
   Menu,
   X,
-  ChevronDown,
   MessageSquare,
-  Plus
+  Activity,
+  Shield,
+  Copy,
+  Check,
+  ExternalLink
 } from 'lucide-react'
 import { healthApi } from '../services/api'
 import { useAuth } from '../hooks/useAuth'
@@ -31,245 +34,395 @@ export default function Layout({ children }: LayoutProps) {
     refetchInterval: 10000,
   })
 
-  const { token, wallet, logout, isLoading, createWallet } = useAuth()
+  const { wallet, logout, createWallet } = useAuth()
   const [showMenu, setShowMenu] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [creatingWallet, setCreatingWallet] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const [scrolled, setScrolled] = useState(false)
+
+  // Track scroll for header background
+  useEffect(() => {
+    const handleScroll = () => setScrolled(window.scrollY > 10)
+    window.addEventListener('scroll', handleScroll)
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
+
+  // Close menu on route change
+  useEffect(() => {
+    setShowMenu(false)
+    setMobileMenuOpen(false)
+  }, [location.pathname])
 
   const navItems = [
     { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-    { path: '/chat', icon: MessageSquare, label: 'Chat', highlight: true },
+    { path: '/chat', icon: MessageSquare, label: 'Chat' },
     { path: '/history', icon: History, label: 'History' },
     { path: '/settings', icon: Settings, label: 'Settings' },
   ]
 
+  const copyWallet = () => {
+    if (wallet?.public_key) {
+      navigator.clipboard.writeText(wallet.public_key)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }
+  }
+
+  const isConnected = health?.drift_connected && health?.scheduler_running
+
   return (
     <div className="min-h-screen flex flex-col">
-      {/* Mesh gradient background */}
+      {/* Background */}
       <div className="fixed inset-0 gradient-mesh pointer-events-none" />
       <div className="fixed inset-0 bg-dots pointer-events-none opacity-50" />
 
       {/* Header */}
-      <header className="glass-strong sticky top-0 z-40 border-b border-gray-700/30">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3">
-          <div className="flex items-center justify-between">
-            {/* Logo and Nav */}
-            <div className="flex items-center gap-6 lg:gap-10">
-              <Link to="/" className="flex items-center gap-3 group">
-                <div className="relative">
-                  <div className="absolute inset-0 bg-indigo-500/20 rounded-xl blur-xl group-hover:bg-indigo-500/30 transition-all duration-500" />
-                  <div className="relative p-2.5 bg-gradient-to-br from-indigo-500/20 to-purple-600/20 rounded-xl border border-indigo-500/20 group-hover:border-indigo-400/40 transition-all duration-300 hover-lift">
-                    <Zap className="h-5 w-5 text-indigo-400 group-hover:text-indigo-300 transition-colors" />
+      <motion.header
+        initial={{ y: -100 }}
+        animate={{ y: 0 }}
+        className={`sticky top-0 z-40 transition-all duration-300 ${
+          scrolled 
+            ? 'bg-gray-900/80 backdrop-blur-xl border-b border-gray-700/50 shadow-lg shadow-black/20' 
+            : 'bg-transparent'
+        }`}
+      >
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+          <div className="flex items-center justify-between h-14">
+            {/* Left: Logo + Nav */}
+            <div className="flex items-center gap-2 lg:gap-6">
+              {/* Logo */}
+              <Link to="/" className="flex items-center gap-2 group">
+                <motion.div 
+                  whileHover={{ scale: 1.05, rotate: 5 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="relative"
+                >
+                  <div className="absolute inset-0 bg-indigo-500/30 rounded-lg blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                  <div className="relative p-1.5 bg-gradient-to-br from-indigo-500/20 to-purple-600/20 rounded-lg border border-indigo-500/30">
+                    <Zap className="h-4 w-4 text-indigo-400" />
                   </div>
-                </div>
-                <div className="hidden sm:block">
-                  <span className="text-lg font-bold tracking-tight text-indigo-400">SolTrader</span>
-                  <span className="text-xs text-gray-500 block -mt-0.5">Intelligent Trading</span>
-                </div>
+                </motion.div>
+                <span className="text-base font-bold text-white hidden sm:block">
+                  Sol<span className="text-indigo-400">Trader</span>
+                </span>
               </Link>
 
               {/* Desktop Navigation */}
-              <nav className="hidden md:flex items-center gap-1">
-                {navItems.map(item => {
-                  const isActive = location.pathname === item.path
-                  return (
-                    <NavLink
-                      key={item.path}
-                      to={item.path}
-                      className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-300 ${
-                        isActive
-                          ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 shadow-inner-glow'
-                          : 'text-gray-400 hover:text-white hover:bg-white/5'
-                      }`}
-                    >
-                      <item.icon className="h-4 w-4" />
-                      {item.label}
-                    </NavLink>
-                  )
-                })}
+              <nav className="hidden md:flex items-center">
+                <div className="flex items-center bg-gray-800/40 rounded-lg p-0.5 border border-gray-700/30">
+                  {navItems.map((item) => {
+                    const isActive = location.pathname === item.path
+                    return (
+                      <NavLink
+                        key={item.path}
+                        to={item.path}
+                        className="relative"
+                      >
+                        <motion.div
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
+                          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                            isActive
+                              ? 'text-white'
+                              : 'text-gray-400 hover:text-white'
+                          }`}
+                        >
+                          {isActive && (
+                            <motion.div
+                              layoutId="nav-pill"
+                              className="absolute inset-0 bg-indigo-500/20 border border-indigo-500/30 rounded-md"
+                              transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                            />
+                          )}
+                          <item.icon className="h-3.5 w-3.5 relative z-10" />
+                          <span className="relative z-10">{item.label}</span>
+                        </motion.div>
+                      </NavLink>
+                    )
+                  })}
+                </div>
               </nav>
             </div>
 
-            {/* Right side */}
-            <div className="flex items-center gap-3">
-              {/* Primary Chat CTA Button */}
-              <Link
-                to="/chat"
-                className="btn-primary py-2 px-4 flex items-center gap-2 text-sm"
+            {/* Right: Status + Wallet + Menu */}
+            <div className="flex items-center gap-2">
+              {/* System Status - Compact */}
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.2 }}
+                className="hidden sm:flex items-center gap-1.5 px-2 py-1 rounded-md bg-gray-800/40 border border-gray-700/30"
+                title={isConnected ? 'All systems operational' : 'Connection issues'}
               >
-                <MessageSquare className="h-4 w-4" />
-                <span className="hidden sm:inline">Open Chat</span>
-              </Link>
-
-              {/* Status indicators */}
-              <div className="hidden lg:flex items-center gap-3 px-4 py-2.5 bg-gray-900/50 rounded-xl border border-gray-700/30">
-                <div className="flex items-center gap-2" title="Drift Protocol Connection">
-                  <div className={`status-dot ${health?.drift_connected ? 'status-dot-active' : 'status-dot-inactive'}`} />
-                  <span className="text-xs text-gray-400 font-medium">Drift</span>
-                </div>
-                <div className="w-px h-4 bg-gray-700/50" />
-                <div className="flex items-center gap-2" title="Scheduler Status">
-                  <div className={`status-dot ${health?.scheduler_running ? 'status-dot-active' : 'status-dot-inactive'}`} />
-                  <span className="text-xs text-gray-400 font-medium">Scheduler</span>
-                </div>
-              </div>
-
-              {/* Wallet Connect Button */}
-              {wallet ? (
-                <div className="flex items-center gap-2 px-3 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
-                  <Wallet className="h-4 w-4 text-emerald-400" />
-                  <span className="text-sm font-medium text-emerald-400 font-mono hidden sm:block">
-                    {wallet.public_key.slice(0, 4)}...{wallet.public_key.slice(-4)}
-                  </span>
-                </div>
-              ) : (
-                <button
-                  onClick={async () => {
-                    setCreatingWallet(true)
-                    try {
-                      await createWallet()
-                    } catch (e) {
-                      console.error('Failed to create wallet:', e)
-                    } finally {
-                      setCreatingWallet(false)
-                    }
-                  }}
-                  disabled={creatingWallet}
-                  className="flex items-center gap-2 px-3 py-2 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 hover:border-indigo-500/30 rounded-xl text-indigo-400 transition-all duration-300"
+                <motion.div
+                  animate={isConnected ? { scale: [1, 1.2, 1] } : {}}
+                  transition={{ repeat: Infinity, duration: 2 }}
                 >
-                  <Plus className="h-4 w-4" />
-                  <span className="text-sm font-medium hidden sm:block">
-                    {creatingWallet ? 'Creating...' : 'Connect Wallet'}
-                  </span>
-                </button>
-              )}
+                  <Activity className={`h-3 w-3 ${isConnected ? 'text-emerald-400' : 'text-amber-400'}`} />
+                </motion.div>
+                <span className={`text-xs font-medium ${isConnected ? 'text-emerald-400' : 'text-amber-400'}`}>
+                  {isConnected ? 'Live' : 'Offline'}
+                </span>
+              </motion.div>
 
-              {/* User/Wallet section */}
-              <div className="relative">
-                <button
-                  onClick={() => setShowMenu(!showMenu)}
-                  className="flex items-center gap-2.5 bg-gray-900/50 hover:bg-gray-800/50 border border-gray-700/30 hover:border-gray-600/50 pl-3 pr-2.5 py-2 rounded-xl transition-all duration-300"
-                >
-                  {wallet ? (
+              {/* Wallet Button */}
+              <motion.div 
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.3 }}
+                className="relative"
+              >
+                {wallet ? (
+                  <motion.button
+                    onClick={() => setShowMenu(!showMenu)}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/15 border border-emerald-500/30 rounded-lg transition-colors"
+                  >
+                    <div className="relative">
+                      <Wallet className="h-3.5 w-3.5 text-emerald-400" />
+                      <motion.div
+                        className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-emerald-400 rounded-full"
+                        animate={{ scale: [1, 1.2, 1] }}
+                        transition={{ repeat: Infinity, duration: 2 }}
+                      />
+                    </div>
+                    <span className="text-xs font-mono text-emerald-400 hidden sm:block">
+                      {wallet.public_key.slice(0, 4)}...{wallet.public_key.slice(-4)}
+                    </span>
+                  </motion.button>
+                ) : (
+                  <motion.button
+                    onClick={async () => {
+                      setCreatingWallet(true)
+                      try {
+                        await createWallet()
+                      } catch (e) {
+                        console.error('Failed to create wallet:', e)
+                      } finally {
+                        setCreatingWallet(false)
+                      }
+                    }}
+                    disabled={creatingWallet}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 rounded-lg text-indigo-400 transition-colors disabled:opacity-50"
+                  >
+                    <Wallet className="h-3.5 w-3.5" />
+                    <span className="text-xs font-medium hidden sm:block">
+                      {creatingWallet ? 'Connecting...' : 'Connect'}
+                    </span>
+                  </motion.button>
+                )}
+
+                {/* Wallet Dropdown */}
+                <AnimatePresence>
+                  {showMenu && wallet && (
                     <>
-                      <div className="p-1.5 bg-emerald-500/15 rounded-lg">
-                        <Wallet className="h-3.5 w-3.5 text-emerald-400" />
-                      </div>
-                      <span className="text-sm font-medium font-mono hidden sm:block text-gray-200">
-                        {wallet.public_key.slice(0, 4)}...{wallet.public_key.slice(-4)}
-                      </span>
-                    </>
-                  ) : (
-                    <>
-                      <User className="h-4 w-4 text-gray-400" />
-                      <span className="text-sm text-gray-400 hidden sm:block">
-                        {isLoading ? 'Loading...' : 'Guest'}
-                      </span>
-                    </>
-                  )}
-                  <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform duration-300 ${showMenu ? 'rotate-180' : ''}`} />
-                </button>
-
-                {/* Dropdown menu */}
-                {showMenu && (
-                  <>
-                    <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
-                    <div className="absolute right-0 mt-2 w-80 card overflow-hidden z-50 animate-scale-in">
-                      <div className="p-4 border-b border-gray-700/30 bg-gray-800/30">
-                        <p className="text-2xs uppercase tracking-wider text-gray-500 font-semibold mb-2">Session Token</p>
-                        <code className="text-xs text-indigo-400 break-all font-mono bg-gray-900/50 px-3 py-2 rounded-lg block">
-                          {token?.slice(0, 28)}...
-                        </code>
-                      </div>
-
-                      {wallet && (
-                        <div className="p-4 border-b border-gray-700/30">
-                          <p className="text-2xs uppercase tracking-wider text-gray-500 font-semibold mb-2">Connected Wallet</p>
-                          <code className="text-xs text-emerald-400 break-all font-mono bg-gray-900/50 px-3 py-2 rounded-lg block">
+                      <motion.div 
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-40" 
+                        onClick={() => setShowMenu(false)} 
+                      />
+                      <motion.div
+                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                        transition={{ type: "spring", bounce: 0.3, duration: 0.4 }}
+                        className="absolute right-0 mt-2 w-64 bg-gray-900/95 backdrop-blur-xl border border-gray-700/50 rounded-xl shadow-2xl shadow-black/50 overflow-hidden z-50"
+                      >
+                        {/* Wallet Info */}
+                        <div className="p-3 border-b border-gray-700/30">
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-1.5">
+                              <div className="p-1 bg-emerald-500/15 rounded">
+                                <Shield className="h-3 w-3 text-emerald-400" />
+                              </div>
+                              <span className="text-xs font-medium text-white">Connected Wallet</span>
+                            </div>
+                            <div className="flex items-center gap-0.5">
+                              <motion.button
+                                onClick={copyWallet}
+                                whileHover={{ scale: 1.1 }}
+                                whileTap={{ scale: 0.9 }}
+                                className="p-1 hover:bg-gray-800 rounded transition-colors"
+                                title="Copy address"
+                              >
+                                {copied ? (
+                                  <Check className="h-3 w-3 text-emerald-400" />
+                                ) : (
+                                  <Copy className="h-3 w-3 text-gray-400" />
+                                )}
+                              </motion.button>
+                              <a
+                                href={`https://solscan.io/account/${wallet.public_key}?cluster=devnet`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="p-1 hover:bg-gray-800 rounded transition-colors"
+                                title="View on Solscan"
+                              >
+                                <ExternalLink className="h-3 w-3 text-gray-400" />
+                              </a>
+                            </div>
+                          </div>
+                          <code className="text-[10px] text-emerald-400 font-mono bg-gray-800/50 px-2 py-1.5 rounded block truncate">
                             {wallet.public_key}
                           </code>
                         </div>
-                      )}
 
-                      <button
-                        onClick={() => {
-                          logout()
-                          setShowMenu(false)
-                        }}
-                        className="w-full p-4 text-left text-sm text-red-400 hover:bg-red-500/10 flex items-center gap-2.5 transition-all duration-300"
-                      >
-                        <LogOut className="h-4 w-4" />
-                        <span className="font-medium">Clear Session & Logout</span>
-                      </button>
-                    </div>
-                  </>
-                )}
-              </div>
+                        {/* System Status */}
+                        <div className="px-3 py-2 border-b border-gray-700/30 bg-gray-800/20">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-1">
+                                <div className={`w-1.5 h-1.5 rounded-full ${health?.drift_connected ? 'bg-emerald-400' : 'bg-red-400'}`} />
+                                <span className="text-[10px] text-gray-400">Drift</span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <div className={`w-1.5 h-1.5 rounded-full ${health?.scheduler_running ? 'bg-emerald-400' : 'bg-red-400'}`} />
+                                <span className="text-[10px] text-gray-400">Scheduler</span>
+                              </div>
+                            </div>
+                            <span className={`text-[10px] font-medium ${isConnected ? 'text-emerald-400' : 'text-amber-400'}`}>
+                              {isConnected ? 'All Systems Go' : 'Issues'}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="p-1.5">
+                          <motion.button
+                            onClick={() => {
+                              logout()
+                              setShowMenu(false)
+                            }}
+                            whileHover={{ x: 2 }}
+                            className="w-full p-2 text-left text-xs text-red-400 hover:bg-red-500/10 flex items-center gap-2 rounded-lg transition-colors"
+                          >
+                            <LogOut className="h-3.5 w-3.5" />
+                            <span className="font-medium">Disconnect</span>
+                          </motion.button>
+                        </div>
+                      </motion.div>
+                    </>
+                  )}
+                </AnimatePresence>
+              </motion.div>
 
               {/* Mobile menu button */}
-              <button
+              <motion.button
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="md:hidden p-2.5 text-gray-400 hover:text-white hover:bg-white/5 rounded-xl transition-all duration-300"
+                className="md:hidden p-1.5 text-gray-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
               >
-                {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-              </button>
+                <AnimatePresence mode="wait">
+                  {mobileMenuOpen ? (
+                    <motion.div
+                      key="close"
+                      initial={{ rotate: -90, opacity: 0 }}
+                      animate={{ rotate: 0, opacity: 1 }}
+                      exit={{ rotate: 90, opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      <X className="h-5 w-5" />
+                    </motion.div>
+                  ) : (
+                    <motion.div
+                      key="menu"
+                      initial={{ rotate: 90, opacity: 0 }}
+                      animate={{ rotate: 0, opacity: 1 }}
+                      exit={{ rotate: -90, opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      <Menu className="h-5 w-5" />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </motion.button>
             </div>
           </div>
 
           {/* Mobile Navigation */}
-          {mobileMenuOpen && (
-            <nav className="md:hidden mt-4 pb-2 border-t border-gray-700/30 pt-4 animate-slide-down">
-              <div className="flex flex-col gap-1">
-                {navItems.map(item => {
-                  const isActive = location.pathname === item.path
-                  return (
-                    <NavLink
-                      key={item.path}
-                      to={item.path}
-                      onClick={() => setMobileMenuOpen(false)}
-                      className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-300 ${
-                        isActive
-                          ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20'
-                          : 'text-gray-400 hover:text-white hover:bg-white/5'
-                      }`}
-                    >
-                      <item.icon className="h-5 w-5" />
-                      {item.label}
-                    </NavLink>
-                  )
-                })}
-              </div>
+          <AnimatePresence>
+            {mobileMenuOpen && (
+              <motion.nav
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.3, ease: "easeInOut" }}
+                className="md:hidden overflow-hidden"
+              >
+                <div className="pb-3 pt-2 space-y-1">
+                  {navItems.map((item, idx) => {
+                    const isActive = location.pathname === item.path
+                    return (
+                      <motion.div
+                        key={item.path}
+                        initial={{ x: -20, opacity: 0 }}
+                        animate={{ x: 0, opacity: 1 }}
+                        transition={{ delay: idx * 0.05 }}
+                      >
+                        <NavLink
+                          to={item.path}
+                          onClick={() => setMobileMenuOpen(false)}
+                          className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                            isActive
+                              ? 'bg-indigo-500/15 text-indigo-400 border border-indigo-500/20'
+                              : 'text-gray-400 hover:text-white hover:bg-white/5'
+                          }`}
+                        >
+                          <item.icon className="h-4 w-4" />
+                          {item.label}
+                        </NavLink>
+                      </motion.div>
+                    )
+                  })}
 
-              {/* Mobile status */}
-              <div className="flex items-center gap-4 mt-4 pt-4 border-t border-gray-700/30 px-4">
-                <div className="flex items-center gap-2">
-                  <div className={`status-dot ${health?.drift_connected ? 'status-dot-active' : 'status-dot-inactive'}`} />
-                  <span className="text-xs text-gray-400">Drift</span>
+                  {/* Mobile Status */}
+                  <motion.div
+                    initial={{ x: -20, opacity: 0 }}
+                    animate={{ x: 0, opacity: 1 }}
+                    transition={{ delay: 0.2 }}
+                    className="flex items-center gap-3 mt-2 pt-2 border-t border-gray-700/30 px-3"
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <div className={`w-1.5 h-1.5 rounded-full ${health?.drift_connected ? 'bg-emerald-400' : 'bg-red-400'}`} />
+                      <span className="text-xs text-gray-400">Drift</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <div className={`w-1.5 h-1.5 rounded-full ${health?.scheduler_running ? 'bg-emerald-400' : 'bg-red-400'}`} />
+                      <span className="text-xs text-gray-400">Scheduler</span>
+                    </div>
+                  </motion.div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <div className={`status-dot ${health?.scheduler_running ? 'status-dot-active' : 'status-dot-inactive'}`} />
-                  <span className="text-xs text-gray-400">Scheduler</span>
-                </div>
-              </div>
-            </nav>
-          )}
+              </motion.nav>
+            )}
+          </AnimatePresence>
         </div>
-      </header>
+      </motion.header>
 
       {/* Main content */}
       <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 py-6 md:py-8 relative z-10">
-        <div className="page-enter">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+        >
           {children}
-        </div>
+        </motion.div>
       </main>
 
-      {/* Footer */}
-      <footer className="border-t border-gray-700/30 py-5 relative z-10 glass">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 text-center">
-          <p className="flex items-center justify-center gap-2.5 text-gray-500 text-sm">
-            <AlertTriangle className="h-4 w-4 text-amber-500/70" />
-            <span>Trading involves risk. Only trade with funds you can afford to lose.</span>
-          </p>
+      {/* Footer - Minimal */}
+      <footer className="border-t border-gray-700/30 py-3 relative z-10">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+          <div className="flex items-center justify-center gap-2 text-gray-500 text-xs">
+            <AlertTriangle className="h-3 w-3 text-amber-500/70" />
+            <span>Trading involves risk. Only trade what you can afford to lose.</span>
+          </div>
         </div>
       </footer>
     </div>

@@ -47,6 +47,21 @@ export interface TradingRule {
   status: 'active' | 'paused' | 'triggered' | 'expired'
   created_at: string
   triggered_at: string | null
+  analysis_data?: {
+    current_price?: number
+    historical_stats?: {
+      price_change_percent?: number
+      high_price?: number
+      low_price?: number
+      volatility?: number
+    }
+    market_search?: {
+      summary?: string
+      results?: Array<{ title?: string; body?: string; href?: string }>
+    }
+    prediction?: string
+    analyzed_at?: string
+  }
 }
 
 export interface JobLog {
@@ -178,18 +193,39 @@ export const chatApi = {
   },
 }
 
+// Rule preview response type
+export interface RulePreview {
+  valid: boolean
+  market: string
+  condition_type: string
+  condition_value: number
+  reference_price: number | null
+  target_price: number | null
+  action_type: string
+  action_amount_percent: number | null
+  action_amount_usd: number | null
+  summary: string
+  explanation: string
+}
+
 // API functions
 export const rulesApi = {
-  create: async (input: string, walletAddress?: string): Promise<TradingRule> => {
-    const { data } = await api.post('/rules/', { input, wallet_address: walletAddress })
+  preview: async (input: string): Promise<RulePreview> => {
+    const { data } = await api.post('/rules/preview', { input })
     return data
   },
 
-  createWithConversation: async (input: string, conversationId?: number, walletAddress?: string): Promise<TradingRule> => {
+  create: async (input: string, walletAddress?: string, analysisData?: TradingRule['analysis_data']): Promise<TradingRule> => {
+    const { data } = await api.post('/rules/', { input, wallet_address: walletAddress, analysis_data: analysisData })
+    return data
+  },
+
+  createWithConversation: async (input: string, conversationId?: number, walletAddress?: string, analysisData?: TradingRule['analysis_data']): Promise<TradingRule> => {
     const { data } = await api.post('/rules/', { 
       input, 
       conversation_id: conversationId,
-      wallet_address: walletAddress 
+      wallet_address: walletAddress,
+      analysis_data: analysisData
     })
     return data
   },
@@ -225,6 +261,18 @@ export const rulesApi = {
     const { data } = await api.get(`/rules/${id}/trades`)
     return ensureArray<Trade>(data)
   },
+
+  chat: async (id: number, message: string): Promise<RuleChatResponse> => {
+    const { data } = await api.post(`/rules/${id}/chat`, { message })
+    return data
+  },
+}
+
+// Rule Chat Response
+export interface RuleChatResponse {
+  response: string
+  action_taken?: string | null
+  rule?: TradingRule | null
 }
 
 // Trades API - centralized trades endpoint

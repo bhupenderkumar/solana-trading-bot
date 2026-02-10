@@ -5,6 +5,16 @@ import { Play, Pause, Trash2, ExternalLink, CheckCircle, XCircle, Activity } fro
 import { TradingRule, rulesApi } from '../services/api'
 import { useToast } from './Toast'
 
+// Fix timezone - ensure proper UTC parsing
+function parseDate(dateString: string): Date {
+  // If string doesn't end with Z, append it to treat as UTC
+  if (dateString && !dateString.endsWith('Z') && !dateString.includes('+')) {
+    dateString = dateString + 'Z'
+  }
+  const date = new Date(dateString)
+  return isNaN(date.getTime()) ? new Date() : date
+}
+
 interface RuleCardProps {
   rule: TradingRule
 }
@@ -147,7 +157,7 @@ export default function RuleCard({ rule }: RuleCardProps) {
         {/* Footer */}
         <div className="flex items-center justify-between text-sm text-gray-500">
           <span>
-            Created {formatDistanceToNow(new Date(rule.created_at), { addSuffix: true })}
+            Created {formatDistanceToNow(parseDate(rule.created_at), { addSuffix: true })}
           </span>
           <ExternalLink className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-all duration-300 group-hover:translate-x-0.5" />
         </div>
@@ -158,7 +168,7 @@ export default function RuleCard({ rule }: RuleCardProps) {
         <div className="mt-4 pt-3 border-t border-gray-700/30">
           <p className="text-sm text-cyan-400 flex items-center gap-2 font-medium">
             <CheckCircle className="h-4 w-4" />
-            Triggered {formatDistanceToNow(new Date(rule.triggered_at), { addSuffix: true })}
+            Triggered {formatDistanceToNow(parseDate(rule.triggered_at), { addSuffix: true })}
           </p>
         </div>
       )}

@@ -83,6 +83,22 @@ class ParsedCondition(BaseModel):
     condition_value: float
     reference: str = "current_price"  # "current_price", "entry_price", "absolute"
 
+    @property
+    def validated_condition_value(self) -> float:
+        """Get condition value with validation applied."""
+        # For price-based conditions, value must be positive
+        if self.condition_type in [ConditionType.PRICE_ABOVE, ConditionType.PRICE_BELOW]:
+            return abs(self.condition_value)  # Convert negative to positive
+        return self.condition_value
+
+    def model_post_init(self, __context):
+        """Validate and fix condition_value after initialization."""
+        # For price-based conditions, ensure value is positive
+        if self.condition_type in [ConditionType.PRICE_ABOVE, ConditionType.PRICE_BELOW]:
+            if self.condition_value < 0:
+                logger.warning(f"Negative price value {self.condition_value} converted to positive")
+                object.__setattr__(self, 'condition_value', abs(self.condition_value))
+
 
 class ParsedAction(BaseModel):
     action_type: ActionType
@@ -125,6 +141,8 @@ class ChatResponse(BaseModel):
 
 SYSTEM_PROMPT = """You are a trading rule parser. Convert natural language trading instructions into structured JSON rules.
 
+IMPORTANT: You are given the CURRENT PRICE for context. Use it to calculate actual target prices.
+
 Available markets on Drift Protocol:
 - SOL-PERP (Solana perpetual)
 - BTC-PERP (Bitcoin perpetual)
@@ -132,22 +150,48 @@ Available markets on Drift Protocol:
 - And other perpetuals like APT-PERP, ARB-PERP, DOGE-PERP, etc.
 
 Condition types:
-- price_above: Trigger when price goes above a value
-- price_below: Trigger when price goes below a value
-- price_change_percent: Trigger on percentage change (positive for up, negative for down)
-- price_change_absolute: Trigger on absolute price change in USD
+- price_above: Trigger when price goes ABOVE a specific dollar value
+  - Use condition_value as the EXACT DOLLAR TARGET
+  - Example: "when SOL hits $200" → condition_value: 200.0
+
+- price_below: Trigger when price goes BELOW a specific dollar value
+  - Use condition_value as the EXACT DOLLAR TARGET
+  - Example: "when BTC drops below 60000" → condition_value: 60000.0
+
+- price_change_percent: Trigger when price changes by a certain PERCENTAGE from current
+  - Use condition_value as the PERCENTAGE NUMBER (not decimal)
+  - Positive for price increase, Negative for price decrease
+  - Example: "when price increases by 5%" → condition_value: 5.0
+  - Example: "when price drops by 10%" → condition_value: -10.0
+
+- price_change_absolute: Trigger when price changes by a certain DOLLAR AMOUNT
+  - Example: "when price goes up by $50" → condition_value: 50.0
+
+CRITICAL FOR PERCENTAGE-BASED RULES:
+When user says "increase by X%" or "goes up X%":
+  - condition_type: "price_change_percent"
+  - condition_value: X (the percentage number)
+  - reference: "current_price"
+
+When user specifies a specific dollar amount like "when SOL hits $200":
+  - condition_type: "price_above" or "price_below"
+  - condition_value: 200.0 (the actual dollar amount)
 
 Action types:
 - buy: Open/increase a long position
 - sell: Close/reduce a position
 - close_position: Close entire position
 
-Always respond with valid JSON in this exact format:
+## EXAMPLES:
+
+User: "sell when SOL increases by 1% from current price"
+(If current price is $150)
+Response:
 {
     "condition": {
         "market": "SOL-PERP",
-        "condition_type": "price_below",
-        "condition_value": 100.0,
+        "condition_type": "price_change_percent",
+        "condition_value": 1.0,
         "reference": "current_price"
     },
     "action": {
@@ -155,7 +199,24 @@ Always respond with valid JSON in this exact format:
         "amount_percent": 100.0,
         "amount_usd": null
     },
-    "summary": "Sell entire SOL-PERP position when price drops below $100"
+    "summary": "Sell SOL-PERP when price increases by 1% (target ~$151.50)"
+}
+
+User: "buy when BTC drops to $60000"
+Response:
+{
+    "condition": {
+        "market": "BTC-PERP",
+        "condition_type": "price_below",
+        "condition_value": 60000.0,
+        "reference": "absolute"
+    },
+    "action": {
+        "action_type": "buy",
+        "amount_percent": 100.0,
+        "amount_usd": null
+    },
+    "summary": "Buy BTC-PERP when price drops below $60,000"
 }
 
 Parse the user's trading instruction and return ONLY the JSON, no other text."""

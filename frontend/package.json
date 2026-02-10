@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite --mode local",
-    "dev:local": "vite --mode local",
+    "dev": "vite",
+    "dev:local": "vite",
     "dev:remote": "vite --mode development",
     "build": "tsc && vite build",
     "build:dev": "tsc && vite build --mode development",
