@@ -477,6 +477,17 @@ export default function Dashboard() {
         </button>
       </motion.div>
 
+      {/* Trading Panel - Always Visible */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.45 }}
+        className="grid lg:grid-cols-2 gap-6"
+      >
+        <TradingPanel />
+        <WalletInfo />
+      </motion.div>
+
       {showDetails && (
         <motion.div
           initial={{ opacity: 0, height: 0 }}
@@ -485,12 +496,6 @@ export default function Dashboard() {
           transition={{ duration: 0.4 }}
           className="space-y-6"
         >
-          {/* Trading Panel */}
-          <div className="grid lg:grid-cols-2 gap-6">
-            <TradingPanel />
-            <WalletInfo />
-          </div>
-
           {/* Price Display */}
           <PriceDisplay />
 
