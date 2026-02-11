@@ -10,6 +10,7 @@ import PriceDisplay from '../components/PriceDisplay'
 import PriceChart from '../components/PriceChart'
 import WalletInfo from '../components/WalletInfo'
 import SearchFilter from '../components/SearchFilter'
+import TradingPanel from '../components/TradingPanel'
 import { RuleCardSkeleton } from '../components/Skeleton'
 import { 
   Inbox, AlertCircle, ChevronDown, MessageSquare, ArrowRight,
@@ -484,8 +485,11 @@ export default function Dashboard() {
           transition={{ duration: 0.4 }}
           className="space-y-6"
         >
-          {/* Wallet Info */}
-          <WalletInfo />
+          {/* Trading Panel */}
+          <div className="grid lg:grid-cols-2 gap-6">
+            <TradingPanel />
+            <WalletInfo />
+          </div>
 
           {/* Price Display */}
           <PriceDisplay />
