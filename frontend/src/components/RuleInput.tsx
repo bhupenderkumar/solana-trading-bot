@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Send, Loader2, Sparkles, ChevronDown, Bot, MessageSquare, CheckCircle, XCircle, AlertTriangle, Target, TrendingUp, TrendingDown } from 'lucide-react'
+import { Send, Loader2, Sparkles, ChevronDown, Bot, MessageSquare, CheckCircle, XCircle, AlertTriangle, Target } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useWallet } from '@solana/wallet-adapter-react'

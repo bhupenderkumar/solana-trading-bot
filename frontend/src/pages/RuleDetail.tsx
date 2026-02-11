@@ -27,7 +27,7 @@ const itemVariants = {
   visible: { 
     opacity: 1, 
     y: 0,
-    transition: { duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] }
+    transition: { duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] as const }
   }
 }
 
@@ -36,14 +36,14 @@ const cardVariants = {
   visible: { 
     opacity: 1, 
     scale: 1,
-    transition: { duration: 0.4, ease: "easeOut" }
+    transition: { duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] as const }
   }
 }
 
 const pulseVariants = {
   pulse: {
     scale: [1, 1.05, 1],
-    transition: { duration: 2, repeat: Infinity, ease: "easeInOut" }
+    transition: { duration: 2, repeat: Infinity, ease: [0.45, 0, 0.55, 1] as const }
   }
 }
 

@@ -16,7 +16,6 @@ import {
   BarChart3,
   Wallet,
   Check,
-  Play,
   Star,
   Users,
   Brain,

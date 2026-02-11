@@ -87,3 +87,65 @@ async def link_wallet(token: str, wallet_public_key: str):
 
     _tokens[token]["wallet"] = wallet_public_key
     return {"success": True, "wallet": wallet_public_key}
+
+
+# Connected wallets from browser (Phantom/Solflare)
+_connected_wallets: dict = {}
+
+
+class WalletConnectRequest(BaseModel):
+    public_key: str
+    wallet_type: str = "unknown"
+
+
+class WalletConnectResponse(BaseModel):
+    success: bool
+    public_key: str
+    wallet_type: str
+    network: str
+    message: str
+
+
+@router.post("/wallet/connect", response_model=WalletConnectResponse)
+async def connect_browser_wallet(request: WalletConnectRequest):
+    """Register a browser wallet connection (Phantom/Solflare)."""
+    from app.config import get_settings
+    settings = get_settings()
+    
+    public_key = request.public_key
+    wallet_type = request.wallet_type
+    
+    # Store the connected wallet
+    _connected_wallets[public_key] = {
+        "wallet_type": wallet_type,
+        "connected_at": "now",
+        "network": settings.drift_env
+    }
+    
+    return WalletConnectResponse(
+        success=True,
+        public_key=public_key,
+        wallet_type=wallet_type,
+        network=settings.drift_env,
+        message=f"Wallet connected on {settings.drift_env}"
+    )
+
+
+@router.get("/wallet/status/{public_key}")
+async def get_wallet_status(public_key: str):
+    """Get status of a connected wallet."""
+    if public_key in _connected_wallets:
+        return {
+            "connected": True,
+            **_connected_wallets[public_key]
+        }
+    return {"connected": False}
+
+
+@router.post("/wallet/disconnect")
+async def disconnect_wallet(request: WalletConnectRequest):
+    """Disconnect a browser wallet."""
+    public_key = request.public_key
+    if public_key in _connected_wallets:
+        del _connected_wallets[public_key]
+    return {"success": True, "message": "Wallet disconnected"}
