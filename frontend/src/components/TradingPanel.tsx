@@ -6,11 +6,33 @@ import {
   ExternalLink, 
   AlertCircle,
   CheckCircle,
-  Wallet
+  Wallet,
+  Clock,
+  XCircle,
+  History,
+  Copy,
+  CheckCheck
 } from 'lucide-react'
 import { useWallet } from '@solana/wallet-adapter-react'
 import { useWalletModal } from '@solana/wallet-adapter-react-ui'
 import { useDriftTrading } from '../hooks/useDriftTrading'
+
+// Order status types
+type OrderStatus = 'pending' | 'executed' | 'failed'
+
+interface OrderHistory {
+  id: string
+  market: string
+  side: 'buy' | 'sell'
+  size: number
+  orderType: 'market' | 'limit'
+  price?: number
+  status: OrderStatus
+  signature?: string
+  explorerUrl?: string
+  error?: string
+  timestamp: Date
+}
 
 const MARKETS = [
   'SOL-PERP',
@@ -40,6 +62,8 @@ export default function TradingPanel() {
   const [price, setPrice] = useState('')
   const [positions, setPositions] = useState<any[]>([])
   const [showSuccess, setShowSuccess] = useState(false)
+  const [orderHistory, setOrderHistory] = useState<OrderHistory[]>([])
+  const [copiedId, setCopiedId] = useState<string | null>(null)
 
   // Load positions on connect
   useEffect(() => {
@@ -60,13 +84,43 @@ export default function TradingPanel() {
       return
     }
 
+    const orderSize = parseFloat(size)
+    const orderPrice = orderType === 'limit' && price ? parseFloat(price) : undefined
+    
+    // Create pending order
+    const pendingOrder: OrderHistory = {
+      id: `order_${Date.now()}`,
+      market,
+      side,
+      size: orderSize,
+      orderType,
+      price: orderPrice,
+      status: 'pending',
+      timestamp: new Date(),
+    }
+    
+    setOrderHistory(prev => [pendingOrder, ...prev].slice(0, 20)) // Keep last 20 orders
+
     const result = await placeOrder({
       market,
       side,
-      size: parseFloat(size),
-      price: orderType === 'limit' && price ? parseFloat(price) : undefined,
+      size: orderSize,
+      price: orderPrice,
       orderType,
     })
+
+    // Update order status
+    setOrderHistory(prev => prev.map(order => 
+      order.id === pendingOrder.id 
+        ? {
+            ...order,
+            status: result.success ? 'executed' : 'failed',
+            signature: result.signature,
+            explorerUrl: result.explorerUrl,
+            error: result.error,
+          }
+        : order
+    ))
 
     if (result.success) {
       setShowSuccess(true)
@@ -75,6 +129,55 @@ export default function TradingPanel() {
       setTimeout(() => setShowSuccess(false), 5000)
       loadPositions()
     }
+  }
+
+  const copyToClipboard = async (text: string, id: string) => {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopiedId(id)
+      setTimeout(() => setCopiedId(null), 2000)
+    } catch (err) {
+      console.error('Failed to copy:', err)
+    }
+  }
+
+  const getStatusBadge = (status: OrderStatus) => {
+    switch (status) {
+      case 'pending':
+        return (
+          <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400">
+            <Clock className="h-3 w-3 animate-pulse" />
+            Pending
+          </span>
+        )
+      case 'executed':
+        return (
+          <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-success-500/20 text-success-400">
+            <CheckCircle className="h-3 w-3" />
+            Executed
+          </span>
+        )
+      case 'failed':
+        return (
+          <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-red-500/20 text-red-400">
+            <XCircle className="h-3 w-3" />
+            Failed
+          </span>
+        )
+    }
+  }
+
+  const formatTime = (date: Date) => {
+    return date.toLocaleTimeString(undefined, {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    })
+  }
+
+  const shortenSignature = (sig: string) => {
+    if (sig.length <= 16) return sig
+    return `${sig.slice(0, 8)}...${sig.slice(-8)}`
   }
 
   if (!connected) {
@@ -259,6 +362,91 @@ export default function TradingPanel() {
           )}
         </button>
       </form>
+
+      {/* Order History */}
+      {orderHistory.length > 0 && (
+        <div className="border-t border-dark-700/50 p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="text-sm font-medium text-white flex items-center gap-2">
+              <History className="h-4 w-4 text-primary-400" />
+              Recent Orders
+            </h4>
+            <button
+              onClick={() => setOrderHistory([])}
+              className="text-xs text-dark-400 hover:text-white transition-colors"
+            >
+              Clear
+            </button>
+          </div>
+          <div className="space-y-2 max-h-64 overflow-y-auto">
+            {orderHistory.map((order) => (
+              <div
+                key={order.id}
+                className="bg-dark-900 rounded-lg p-3 space-y-2"
+              >
+                {/* Order Info Row */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${
+                      order.side === 'buy' ? 'bg-success-500/20 text-success-400' : 'bg-red-500/20 text-red-400'
+                    }`}>
+                      {order.side === 'buy' ? 'LONG' : 'SHORT'}
+                    </span>
+                    <span className="text-white font-medium text-sm">{order.market}</span>
+                    <span className="text-dark-400 text-xs">
+                      {order.size.toFixed(4)} @ {order.orderType === 'market' ? 'Market' : `$${order.price?.toFixed(2)}`}
+                    </span>
+                  </div>
+                  {getStatusBadge(order.status)}
+                </div>
+
+                {/* Transaction Details Row */}
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-dark-500">{formatTime(order.timestamp)}</span>
+                  
+                  {order.signature && (
+                    <div className="flex items-center gap-2">
+                      {/* Signature with copy */}
+                      <button
+                        onClick={() => copyToClipboard(order.signature!, order.id)}
+                        className="flex items-center gap-1 text-dark-400 hover:text-white transition-colors font-mono"
+                        title="Copy transaction signature"
+                      >
+                        {shortenSignature(order.signature)}
+                        {copiedId === order.id ? (
+                          <CheckCheck className="h-3 w-3 text-success-400" />
+                        ) : (
+                          <Copy className="h-3 w-3" />
+                        )}
+                      </button>
+
+                      {/* Explorer Link */}
+                      {order.explorerUrl && (
+                        <a
+                          href={order.explorerUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1 text-primary-400 hover:text-primary-300 transition-colors"
+                          title="Verify on Solana Explorer"
+                        >
+                          <ExternalLink className="h-3.5 w-3.5" />
+                          Verify
+                        </a>
+                      )}
+                    </div>
+                  )}
+
+                  {order.error && (
+                    <span className="text-red-400 truncate max-w-[200px]" title={order.error}>
+                      {order.error}
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Positions */}
       {positions.length > 0 && (
