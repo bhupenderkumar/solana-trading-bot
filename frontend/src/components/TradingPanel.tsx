@@ -453,34 +453,59 @@ export default function TradingPanel() {
         <div className="border-t border-dark-700/50 p-4">
           <div className="flex items-center justify-between mb-3">
             <h4 className="text-sm font-medium text-white">Open Positions</h4>
-            <button
-              onClick={loadPositions}
-              className="text-dark-400 hover:text-white transition-colors"
-            >
-              <RefreshCw className="h-4 w-4" />
-            </button>
+            <div className="flex items-center gap-2">
+              <a
+                href={`https://app.drift.trade/?network=devnet`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-primary-400 hover:text-primary-300 flex items-center gap-1"
+                title="Verify positions on Drift"
+              >
+                <ExternalLink className="h-3 w-3" />
+                Drift App
+              </a>
+              <button
+                onClick={loadPositions}
+                className="text-dark-400 hover:text-white transition-colors"
+              >
+                <RefreshCw className="h-4 w-4" />
+              </button>
+            </div>
           </div>
           <div className="space-y-2">
             {positions.map((pos, i) => (
               <div
                 key={i}
-                className="bg-dark-900 rounded-lg p-3 flex items-center justify-between"
+                className="bg-dark-900 rounded-lg p-3 space-y-2"
               >
-                <div>
-                  <span className="text-white font-medium">{pos.market}</span>
-                  <span className={`ml-2 text-xs ${
-                    pos.side === 'long' ? 'text-success-400' : 'text-red-400'
-                  }`}>
-                    {pos.side.toUpperCase()}
-                  </span>
-                </div>
-                <div className="text-right">
-                  <div className="text-white">{pos.size.toFixed(4)}</div>
-                  <div className={`text-xs ${
-                    pos.unrealized_pnl >= 0 ? 'text-success-400' : 'text-red-400'
-                  }`}>
-                    {pos.unrealized_pnl >= 0 ? '+' : ''}{pos.unrealized_pnl.toFixed(2)} USDC
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-white font-medium">{pos.market}</span>
+                    <span className={`ml-2 text-xs ${
+                      pos.side === 'long' ? 'text-success-400' : 'text-red-400'
+                    }`}>
+                      {pos.side.toUpperCase()}
+                    </span>
                   </div>
+                  <div className="text-right">
+                    <div className="text-white">{pos.size.toFixed(4)}</div>
+                    <div className={`text-xs ${
+                      pos.unrealized_pnl >= 0 ? 'text-success-400' : 'text-red-400'
+                    }`}>
+                      {pos.unrealized_pnl >= 0 ? '+' : ''}{pos.unrealized_pnl.toFixed(2)} USDC
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-dark-500">Entry: ${pos.entry_price?.toFixed(2) || 'N/A'}</span>
+                  <a
+                    href={`https://app.drift.trade/overview?userAccount=${publicKey?.toBase58()}&network=devnet`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary-400 hover:text-primary-300 flex items-center gap-1"
+                  >
+                    Verify on Drift <ExternalLink className="h-3 w-3" />
+                  </a>
                 </div>
               </div>
             ))}
@@ -488,19 +513,48 @@ export default function TradingPanel() {
         </div>
       )}
 
-      {/* Info Footer */}
-      <div className="border-t border-dark-700/50 p-4 bg-dark-900/50">
-        <p className="text-xs text-dark-400">
-          Trading on Drift Protocol Devnet. Transactions are signed with your browser wallet
-          and verified on-chain.{' '}
+      {/* Verification Links */}
+      <div className="border-t border-dark-700/50 p-4">
+        <h4 className="text-sm font-medium text-white mb-3">Verify Your Trading Activity</h4>
+        <div className="grid grid-cols-2 gap-2">
+          <a
+            href={`https://app.drift.trade/overview?userAccount=${publicKey?.toBase58()}&network=devnet`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-center gap-2 p-3 bg-dark-900 hover:bg-dark-700 rounded-lg border border-dark-700 transition-colors group"
+          >
+            <div className="w-6 h-6 bg-gradient-to-br from-purple-500 to-blue-500 rounded flex items-center justify-center text-white text-xs font-bold">D</div>
+            <div className="text-left">
+              <div className="text-xs font-medium text-white group-hover:text-primary-400">Drift Protocol</div>
+              <div className="text-[10px] text-dark-400">View positions & orders</div>
+            </div>
+            <ExternalLink className="h-3 w-3 text-dark-400 group-hover:text-primary-400" />
+          </a>
           <a
             href={`https://explorer.solana.com/address/${publicKey?.toBase58()}?cluster=devnet`}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-primary-400 hover:text-primary-300"
+            className="flex items-center justify-center gap-2 p-3 bg-dark-900 hover:bg-dark-700 rounded-lg border border-dark-700 transition-colors group"
           >
-            View wallet on explorer →
+            <div className="w-6 h-6 bg-gradient-to-br from-green-500 to-teal-500 rounded flex items-center justify-center text-white text-xs font-bold">S</div>
+            <div className="text-left">
+              <div className="text-xs font-medium text-white group-hover:text-primary-400">Solana Explorer</div>
+              <div className="text-[10px] text-dark-400">View all transactions</div>
+            </div>
+            <ExternalLink className="h-3 w-3 text-dark-400 group-hover:text-primary-400" />
           </a>
+        </div>
+        <div className="mt-3 p-2 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+          <p className="text-xs text-amber-400">
+            <strong>Devnet Mode:</strong> Connect your wallet to <a href="https://app.drift.trade/?network=devnet" target="_blank" rel="noopener noreferrer" className="underline hover:text-amber-300">app.drift.trade</a> with the same wallet to see your positions, open orders, and trading history.
+          </p>
+        </div>
+      </div>
+
+      {/* Info Footer */}
+      <div className="border-t border-dark-700/50 p-4 bg-dark-900/50">
+        <p className="text-xs text-dark-400">
+          Trading on Drift Protocol Devnet. All positions and orders are verifiable on-chain.
         </p>
       </div>
     </div>
