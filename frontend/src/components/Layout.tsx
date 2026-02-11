@@ -3,7 +3,7 @@ import { Link, NavLink, useLocation } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  Zap,
+  Bot,
   AlertTriangle,
   Wallet,
   LogOut,
@@ -12,7 +12,7 @@ import {
   Settings,
   Menu,
   X,
-  MessageSquare,
+  Terminal,
   Activity,
   Shield,
   Copy,
@@ -55,8 +55,8 @@ export default function Layout({ children }: LayoutProps) {
   }, [location.pathname])
 
   const navItems = [
-    { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-    { path: '/chat', icon: MessageSquare, label: 'Chat' },
+    { path: '/dashboard', icon: LayoutDashboard, label: 'Agents' },
+    { path: '/chat', icon: Terminal, label: 'Console' },
     { path: '/history', icon: History, label: 'History' },
     { path: '/settings', icon: Settings, label: 'Settings' },
   ]
@@ -100,11 +100,11 @@ export default function Layout({ children }: LayoutProps) {
                 >
                   <div className="absolute inset-0 bg-indigo-500/30 rounded-lg blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                   <div className="relative p-1.5 bg-gradient-to-br from-indigo-500/20 to-purple-600/20 rounded-lg border border-indigo-500/30">
-                    <Zap className="h-4 w-4 text-indigo-400" />
+                    <Bot className="h-4 w-4 text-indigo-400" />
                   </div>
                 </motion.div>
                 <span className="text-base font-bold text-white hidden sm:block">
-                  Sol<span className="text-indigo-400">Trader</span>
+                  Agent<span className="text-indigo-400">Fi</span>
                 </span>
               </Link>
 

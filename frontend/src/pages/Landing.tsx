@@ -146,71 +146,223 @@ function GlowingOrb({ className = "", delay = 0 }: { className?: string; delay?:
   )
 }
 
-// Stats counter component
-function StatCounter({ value, suffix = "", label }: { value: number; suffix?: string; label: string }) {
-  const ref = useRef(null)
-  const isInView = useInView(ref, { once: true })
-  const [count, setCount] = useState(0)
-
-  useEffect(() => {
-    if (isInView) {
-      let start = 0
-      const duration = 2000
-      const increment = value / (duration / 16)
-      const timer = setInterval(() => {
-        start += increment
-        if (start >= value) {
-          setCount(value)
-          clearInterval(timer)
-        } else {
-          setCount(Math.floor(start))
-        }
-      }, 16)
-      return () => clearInterval(timer)
+// Animated terminal with continuous loop
+const terminalCommands = [
+  {
+    user: "Deploy an agent to buy $500 of SOL when it drops below $80",
+    response: {
+      type: "create",
+      title: "🤖 Agent Deployed Successfully",
+      details: [
+        { label: "Agent ID", value: "AGT-7X42" },
+        { label: "Strategy", value: "Buy SOL-PERP at $80" },
+        { label: "Capital", value: "$500 allocated" },
+        { label: "Status", value: "Monitoring ●", color: "text-emerald-400" }
+      ]
     }
-  }, [isInView, value])
+  },
+  {
+    user: "Pause my SOL agent temporarily",
+    response: {
+      type: "pause",
+      title: "Agent Paused",
+      details: [
+        { label: "Agent", value: "AGT-7X42 (SOL)" },
+        { label: "Status", value: "Standby ◯", color: "text-amber-400" },
+        { label: "Note", value: "Agent will not execute until resumed" }
+      ]
+    }
+  },
+  {
+    user: "Show me all my active agents",
+    response: {
+      type: "info",
+      title: "Agent Fleet Overview",
+      details: [
+        { label: "Total Agents", value: "3" },
+        { label: "Active", value: "2", color: "text-emerald-400" },
+        { label: "Standby", value: "1", color: "text-amber-400" },
+        { label: "Trades Today", value: "1" }
+      ]
+    }
+  },
+  {
+    user: "Resume my SOL agent",
+    response: {
+      type: "resume",
+      title: "Agent Reactivated",
+      details: [
+        { label: "Agent", value: "AGT-7X42 (SOL)" },
+        { label: "Status", value: "Monitoring ●", color: "text-emerald-400" },
+        { label: "Frequency", value: "Checking every 10s" }
+      ]
+    }
+  },
+  {
+    user: "Terminate the ETH agent I deployed yesterday",
+    response: {
+      type: "delete",
+      title: "Agent Terminated",
+      details: [
+        { label: "Agent", value: "AGT-3K91 (ETH)" },
+        { label: "Runtime", value: "23h 18m" },
+        { label: "Status", value: "Terminated", color: "text-red-400" }
+      ]
+    }
+  }
+]
 
-  return (
-    <div ref={ref} className="text-center">
-      <div className="text-4xl md:text-5xl font-bold text-white mb-2">
-        {count.toLocaleString()}{suffix}
-      </div>
-      <div className="text-gray-400 text-sm uppercase tracking-wider">{label}</div>
-    </div>
-  )
-}
+function AnimatedTerminal() {
+  const [currentCommandIndex, setCurrentCommandIndex] = useState(0)
+  const [displayedText, setDisplayedText] = useState("")
+  const [showResponse, setShowResponse] = useState(false)
+  const [isTyping, setIsTyping] = useState(true)
 
-// Typing effect component
-function TypeWriter({ text, delay = 0 }: { text: string; delay?: number }) {
-  const [displayText, setDisplayText] = useState("")
-  
+  const currentCommand = terminalCommands[currentCommandIndex]
+
   useEffect(() => {
-    const timer = setTimeout(() => {
-      let i = 0
-      const interval = setInterval(() => {
-        if (i < text.length) {
-          setDisplayText(text.slice(0, i + 1))
-          i++
-        } else {
-          clearInterval(interval)
-        }
-      }, 50)
-      return () => clearInterval(interval)
-    }, delay)
-    return () => clearTimeout(timer)
-  }, [text, delay])
+    let charIndex = 0
+    setDisplayedText("")
+    setShowResponse(false)
+    setIsTyping(true)
+
+    // Typing effect
+    const typingInterval = setInterval(() => {
+      if (charIndex < currentCommand.user.length) {
+        setDisplayedText(currentCommand.user.slice(0, charIndex + 1))
+        charIndex++
+      } else {
+        clearInterval(typingInterval)
+        setIsTyping(false)
+        // Show response after typing completes
+        setTimeout(() => {
+          setShowResponse(true)
+        }, 300)
+      }
+    }, 25)
+
+    return () => clearInterval(typingInterval)
+  }, [currentCommandIndex])
+
+  useEffect(() => {
+    if (showResponse) {
+      // Move to next command after showing response
+      const nextTimer = setTimeout(() => {
+        setCurrentCommandIndex((prev) => (prev + 1) % terminalCommands.length)
+      }, 2000)
+      return () => clearTimeout(nextTimer)
+    }
+  }, [showResponse])
+
+  const getResponseColor = (type: string) => {
+    switch (type) {
+      case 'create': return 'from-emerald-500/10 to-teal-500/10 border-emerald-500/20'
+      case 'pause': return 'from-amber-500/10 to-orange-500/10 border-amber-500/20'
+      case 'resume': return 'from-emerald-500/10 to-teal-500/10 border-emerald-500/20'
+      case 'delete': return 'from-red-500/10 to-rose-500/10 border-red-500/20'
+      case 'info': return 'from-blue-500/10 to-cyan-500/10 border-blue-500/20'
+      default: return 'from-indigo-500/10 to-purple-500/10 border-indigo-500/20'
+    }
+  }
+
+  const getIconColor = (type: string) => {
+    switch (type) {
+      case 'create': return 'text-emerald-400'
+      case 'pause': return 'text-amber-400'
+      case 'resume': return 'text-emerald-400'
+      case 'delete': return 'text-red-400'
+      case 'info': return 'text-blue-400'
+      default: return 'text-indigo-400'
+    }
+  }
 
   return (
-    <span>
-      {displayText}
-      <motion.span
-        animate={{ opacity: [1, 0, 1] }}
-        transition={{ duration: 0.8, repeat: Infinity }}
-        className="text-indigo-400"
-      >
-        |
-      </motion.span>
-    </span>
+    <div className="relative bg-gray-900/80 backdrop-blur-xl border border-gray-700/50 rounded-3xl overflow-hidden shadow-2xl">
+      {/* Terminal header */}
+      <div className="flex items-center gap-2 px-6 py-4 border-b border-gray-700/50 bg-gray-800/50">
+        <div className="flex gap-2">
+          <div className="w-3 h-3 rounded-full bg-red-500/80" />
+          <div className="w-3 h-3 rounded-full bg-yellow-500/80" />
+          <div className="w-3 h-3 rounded-full bg-green-500/80" />
+        </div>
+        <div className="flex-1 text-center">
+          <span className="text-xs text-gray-500 font-medium">SolTrader AI Assistant</span>
+        </div>
+        <Terminal className="h-4 w-4 text-gray-500" />
+      </div>
+      
+      {/* Progress indicators */}
+      <div className="flex justify-center gap-2 px-6 py-3 border-b border-gray-700/30">
+        {terminalCommands.map((_, idx) => (
+          <div
+            key={idx}
+            className={`w-2 h-2 rounded-full transition-all duration-300 ${
+              idx === currentCommandIndex
+                ? 'bg-indigo-400 scale-125'
+                : idx < currentCommandIndex
+                ? 'bg-indigo-400/50'
+                : 'bg-gray-600'
+            }`}
+          />
+        ))}
+      </div>
+
+      {/* Terminal content */}
+      <div className="p-8 space-y-6 font-mono text-sm min-h-[280px]">
+        {/* User message */}
+        <div className="flex items-start gap-4">
+          <div className="w-8 h-8 rounded-full bg-indigo-500/20 flex items-center justify-center flex-shrink-0">
+            <MousePointer className="h-4 w-4 text-indigo-400" />
+          </div>
+          <div className="flex-1 bg-gray-800/50 rounded-2xl rounded-tl-none px-5 py-4">
+            <span className="text-gray-300">
+              {displayedText}
+              {isTyping && (
+                <motion.span
+                  animate={{ opacity: [1, 0, 1] }}
+                  transition={{ duration: 0.5, repeat: Infinity }}
+                  className="text-indigo-400 ml-0.5"
+                >
+                  |
+                </motion.span>
+              )}
+            </span>
+          </div>
+        </div>
+
+        {/* Bot response */}
+        <AnimatePresence mode="wait">
+          {showResponse && (
+            <motion.div
+              key={currentCommandIndex}
+              initial={{ opacity: 0, y: 10, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -10, scale: 0.95 }}
+              transition={{ duration: 0.3 }}
+              className="flex items-start gap-4"
+            >
+              <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center flex-shrink-0">
+                <Bot className="h-4 w-4 text-emerald-400" />
+              </div>
+              <div className={`flex-1 bg-gradient-to-br ${getResponseColor(currentCommand.response.type)} border rounded-2xl rounded-tl-none px-5 py-4`}>
+                <div className={`flex items-center gap-2 ${getIconColor(currentCommand.response.type)} mb-3`}>
+                  <Check className="h-4 w-4" />
+                  <span className="font-semibold">{currentCommand.response.title}</span>
+                </div>
+                <div className="text-gray-400 space-y-1.5">
+                  {currentCommand.response.details.map((detail, idx) => (
+                    <div key={idx}>
+                      <span className="text-gray-500">{detail.label}:</span>{" "}
+                      <span className={detail.color || 'text-gray-300'}>{detail.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    </div>
   )
 }
 
@@ -350,38 +502,38 @@ export default function Landing() {
   const features = [
     {
       icon: Brain,
-      title: "AI-Powered Trading",
-      description: "Leverage advanced language models to create, manage, and execute trading strategies using simple natural language commands.",
+      title: "Autonomous AI Agents",
+      description: "Deploy intelligent trading agents that understand natural language, make decisions, and execute trades autonomously 24/7.",
       gradient: "bg-gradient-to-br from-indigo-500/20 to-purple-600/20"
     },
     {
       icon: Clock,
-      title: "24/7 Automation",
-      description: "Your trading rules work around the clock, monitoring markets and executing trades even while you sleep.",
+      title: "Always-On Intelligence",
+      description: "Your AI agents never sleep. They continuously monitor markets, analyze conditions, and act instantly when opportunities arise.",
       gradient: "bg-gradient-to-br from-emerald-500/20 to-teal-600/20"
     },
     {
       icon: Shield,
-      title: "Enterprise Security",
-      description: "Bank-grade encryption, secure wallet connections, and multi-layer authentication to protect your assets.",
+      title: "Institutional Security",
+      description: "Enterprise-grade encryption, secure wallet integrations, and multi-signature authentication protect your assets.",
       gradient: "bg-gradient-to-br from-amber-500/20 to-orange-600/20"
     },
     {
       icon: BarChart3,
-      title: "Real-Time Analytics",
-      description: "Live market data, comprehensive charts, and detailed performance metrics at your fingertips.",
+      title: "Real-Time Agent Analytics",
+      description: "Monitor agent performance, track decision-making patterns, and optimize strategies with comprehensive dashboards.",
       gradient: "bg-gradient-to-br from-cyan-500/20 to-blue-600/20"
     },
     {
       icon: Globe,
-      title: "Multi-Market Support",
-      description: "Trade across perpetual futures, spot markets, and more with unified interface and seamless execution.",
+      title: "Multi-Protocol Support",
+      description: "Connect to multiple DeFi protocols and markets. One agent, unlimited possibilities across the ecosystem.",
       gradient: "bg-gradient-to-br from-rose-500/20 to-pink-600/20"
     },
     {
       icon: Boxes,
-      title: "Drift Protocol Integration",
-      description: "Direct integration with Drift Protocol for institutional-grade perpetual futures trading on Solana.",
+      title: "Drift Protocol Native",
+      description: "Deep integration with Drift Protocol for institutional-grade perpetual futures on Solana's fastest infrastructure.",
       gradient: "bg-gradient-to-br from-violet-500/20 to-indigo-600/20"
     }
   ]
@@ -430,18 +582,18 @@ export default function Landing() {
                   className="relative p-2.5 bg-gradient-to-br from-indigo-500/20 to-purple-600/20 rounded-xl border border-indigo-500/20"
                   whileHover={{ scale: 1.05, rotate: 5 }}
                 >
-                  <Zap className="h-6 w-6 text-indigo-400" />
+                  <Bot className="h-6 w-6 text-indigo-400" />
                 </motion.div>
                 <span className="text-xl font-bold tracking-tight text-white">
-                  Sol<span className="text-indigo-400">Trader</span>
+                  Agent<span className="text-indigo-400">Fi</span>
                 </span>
               </Link>
 
               {/* Desktop Nav */}
               <div className="hidden md:flex items-center gap-8">
-                <a href="#features" className="text-gray-400 hover:text-white transition-colors text-sm font-medium">Features</a>
-                <a href="#how-it-works" className="text-gray-400 hover:text-white transition-colors text-sm font-medium">How it Works</a>
-                <a href="#testimonials" className="text-gray-400 hover:text-white transition-colors text-sm font-medium">Testimonials</a>
+                <a href="#features" className="text-gray-400 hover:text-white transition-colors text-sm font-medium">Platform</a>
+                <a href="#how-it-works" className="text-gray-400 hover:text-white transition-colors text-sm font-medium">How It Works</a>
+                <a href="#testimonials" className="text-gray-400 hover:text-white transition-colors text-sm font-medium">Use Cases</a>
               </div>
 
               <div className="flex items-center gap-3">
@@ -522,15 +674,15 @@ export default function Landing() {
               whileHover={{ scale: 1.05 }}
             >
               <CircleDot className="h-4 w-4 text-indigo-400 animate-pulse" />
-              <span className="text-sm text-indigo-300 font-medium">Built on Solana • Powered by AI</span>
+              <span className="text-sm text-indigo-300 font-medium">Autonomous AI Agents • Built on Solana</span>
             </motion.div>
 
             {/* Main headline */}
             <h1 className="text-5xl md:text-7xl lg:text-8xl font-bold text-white mb-6 leading-tight tracking-tight">
-              <span className="block">Trade Crypto with</span>
+              <span className="block">Deploy AI Agents</span>
               <span className="relative inline-block">
                 <span className="bg-gradient-to-r from-indigo-400 via-purple-400 to-cyan-400 bg-clip-text text-transparent">
-                  Natural Language
+                  That Trade For You
                 </span>
                 <motion.div
                   className="absolute -bottom-2 left-0 right-0 h-1 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full"
@@ -547,8 +699,8 @@ export default function Landing() {
               animate={{ opacity: 1 }}
               transition={{ delay: 0.3 }}
             >
-              Create automated trading rules, monitor markets, and execute strategies — 
-              just by chatting with our AI assistant.
+              Create autonomous trading agents with natural language. Your AI agents monitor markets 24/7, 
+              make intelligent decisions, and execute trades automatically.
             </motion.p>
 
             {/* CTA buttons */}
@@ -569,8 +721,8 @@ export default function Landing() {
                   transition={{ duration: 0.3 }}
                 />
                 <span className="relative flex items-center gap-3">
-                  <MessageSquare className="h-5 w-5" />
-                  Start Trading Now
+                  <Bot className="h-5 w-5" />
+                  Deploy Your First Agent
                   <ArrowRight className="h-5 w-5 group-hover:translate-x-2 transition-transform" />
                 </span>
               </Link>
@@ -579,8 +731,8 @@ export default function Landing() {
                 className="group px-8 py-4 bg-gray-800/50 hover:bg-gray-800/70 border border-gray-700/50 hover:border-gray-600/50 rounded-2xl text-white font-semibold text-lg transition-all"
               >
                 <span className="flex items-center gap-3">
-                  <Play className="h-5 w-5 text-indigo-400" />
-                  View Dashboard
+                  <Activity className="h-5 w-5 text-indigo-400" />
+                  View Agent Dashboard
                 </span>
               </Link>
             </motion.div>
@@ -593,53 +745,7 @@ export default function Landing() {
               className="relative max-w-3xl mx-auto"
             >
               <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/20 to-purple-500/20 rounded-3xl blur-2xl" />
-              <div className="relative bg-gray-900/80 backdrop-blur-xl border border-gray-700/50 rounded-3xl overflow-hidden shadow-2xl">
-                {/* Terminal header */}
-                <div className="flex items-center gap-2 px-6 py-4 border-b border-gray-700/50 bg-gray-800/50">
-                  <div className="flex gap-2">
-                    <div className="w-3 h-3 rounded-full bg-red-500/80" />
-                    <div className="w-3 h-3 rounded-full bg-yellow-500/80" />
-                    <div className="w-3 h-3 rounded-full bg-green-500/80" />
-                  </div>
-                  <div className="flex-1 text-center">
-                    <span className="text-xs text-gray-500 font-medium">SolTrader AI Assistant</span>
-                  </div>
-                  <Terminal className="h-4 w-4 text-gray-500" />
-                </div>
-                {/* Terminal content */}
-                <div className="p-8 space-y-6 font-mono text-sm">
-                  <div className="flex items-start gap-4">
-                    <div className="w-8 h-8 rounded-full bg-indigo-500/20 flex items-center justify-center flex-shrink-0">
-                      <MousePointer className="h-4 w-4 text-indigo-400" />
-                    </div>
-                    <div className="flex-1 bg-gray-800/50 rounded-2xl rounded-tl-none px-5 py-4">
-                      <TypeWriter text="Buy $500 of SOL when it drops below $80" delay={1000} />
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-4">
-                    <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center flex-shrink-0">
-                      <Bot className="h-4 w-4 text-emerald-400" />
-                    </div>
-                    <motion.div 
-                      className="flex-1 bg-gradient-to-br from-emerald-500/10 to-teal-500/10 border border-emerald-500/20 rounded-2xl rounded-tl-none px-5 py-4"
-                      initial={{ opacity: 0, scale: 0.9 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ delay: 3 }}
-                    >
-                      <div className="flex items-center gap-2 text-emerald-400 mb-2">
-                        <Check className="h-4 w-4" />
-                        <span className="font-semibold">Trading Rule Created</span>
-                      </div>
-                      <div className="text-gray-400 space-y-1">
-                        <div><span className="text-gray-500">Asset:</span> SOL-PERP</div>
-                        <div><span className="text-gray-500">Action:</span> Buy $500</div>
-                        <div><span className="text-gray-500">Trigger:</span> Price &lt; $80.00</div>
-                        <div><span className="text-gray-500">Status:</span> <span className="text-emerald-400">Active ●</span></div>
-                      </div>
-                    </motion.div>
-                  </div>
-                </div>
-              </div>
+              <AnimatedTerminal />
             </motion.div>
           </motion.div>
 
@@ -654,27 +760,113 @@ export default function Landing() {
         </div>
       </motion.section>
 
-      {/* Stats Section */}
+      {/* How It Works Flow Section */}
       <section className="relative py-20 px-4">
-        <div className="max-w-6xl mx-auto">
-          <motion.div 
+        <div className="max-w-5xl mx-auto">
+          <motion.div
             initial="hidden"
             whileInView="visible"
             viewport={{ once: true, margin: "-100px" }}
             variants={staggerContainer}
-            className="grid grid-cols-2 md:grid-cols-4 gap-8 md:gap-12"
+            className="text-center mb-12"
           >
-            <motion.div variants={fadeInUp}>
-              <StatCounter value={50000} suffix="+" label="Trades Executed" />
+            <motion.div variants={fadeInUp} className="inline-flex items-center gap-2 px-4 py-2 bg-purple-500/10 border border-purple-500/20 rounded-full mb-6">
+              <Activity className="h-4 w-4 text-purple-400" />
+              <span className="text-sm text-purple-300 font-medium">Agent Lifecycle</span>
             </motion.div>
-            <motion.div variants={fadeInUp}>
-              <StatCounter value={12000} suffix="+" label="Active Users" />
+            <motion.h2 variants={fadeInUp} className="text-3xl md:text-4xl font-bold text-white mb-4">
+              From Intent to <span className="bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">Autonomous Execution</span>
+            </motion.h2>
+          </motion.div>
+
+          <motion.div
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, margin: "-50px" }}
+            variants={staggerContainer}
+            className="grid md:grid-cols-3 gap-8 items-start"
+          >
+            {/* Step 1: Deploy Agent */}
+            <motion.div 
+              variants={fadeInUp}
+              className="relative bg-gray-900/60 backdrop-blur-xl border border-gray-700/30 rounded-3xl p-8 text-center"
+            >
+              <div className="absolute -top-4 left-1/2 -translate-x-1/2 px-4 py-1 bg-indigo-500 rounded-full text-white text-sm font-semibold">
+                Deploy
+              </div>
+              <div className="w-16 h-16 mx-auto mb-6 bg-gradient-to-br from-indigo-500/20 to-purple-600/20 rounded-2xl border border-indigo-500/30 flex items-center justify-center">
+                <MessageSquare className="h-8 w-8 text-indigo-400" />
+              </div>
+              <h3 className="text-xl font-bold text-white mb-3">Deploy Agent</h3>
+              <p className="text-gray-400 text-sm">Describe your strategy in natural language. Our AI creates an autonomous agent instantly.</p>
+              <div className="mt-4 p-3 bg-gray-800/50 rounded-xl text-xs text-gray-400 font-mono">
+                "Deploy agent to buy SOL at $80"
+              </div>
+              {/* Arrow to next */}
+              <div className="hidden md:block absolute top-1/2 -right-4 translate-x-1/2 -translate-y-1/2">
+                <motion.div
+                  animate={{ x: [0, 5, 0] }}
+                  transition={{ duration: 1.5, repeat: Infinity }}
+                >
+                  <ArrowRight className="h-6 w-6 text-indigo-400" />
+                </motion.div>
+              </div>
             </motion.div>
-            <motion.div variants={fadeInUp}>
-              <StatCounter value={99} suffix="%" label="Uptime" />
+
+            {/* Step 2: Agent Monitors */}
+            <motion.div 
+              variants={fadeInUp}
+              className="relative bg-gray-900/60 backdrop-blur-xl border border-gray-700/30 rounded-3xl p-8 text-center"
+            >
+              <div className="absolute -top-4 left-1/2 -translate-x-1/2 px-4 py-1 bg-emerald-500 rounded-full text-white text-sm font-semibold">
+                Monitor
+              </div>
+              <div className="w-16 h-16 mx-auto mb-6 bg-gradient-to-br from-emerald-500/20 to-teal-600/20 rounded-2xl border border-emerald-500/30 flex items-center justify-center relative">
+                <Bot className="h-8 w-8 text-emerald-400" />
+                <motion.div
+                  className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-400 rounded-full"
+                  animate={{ scale: [1, 1.3, 1], opacity: [1, 0.5, 1] }}
+                  transition={{ duration: 2, repeat: Infinity }}
+                />
+              </div>
+              <h3 className="text-xl font-bold text-white mb-3">Agent Monitors 24/7</h3>
+              <p className="text-gray-400 text-sm">Your autonomous agent continuously analyzes market conditions in real-time.</p>
+              <div className="mt-4 flex items-center justify-center gap-2 text-emerald-400 text-sm">
+                <motion.div
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                >
+                  <Clock className="h-4 w-4" />
+                </motion.div>
+                <span>Never sleeps</span>
+              </div>
+              {/* Arrow to next */}
+              <div className="hidden md:block absolute top-1/2 -right-4 translate-x-1/2 -translate-y-1/2">
+                <motion.div
+                  animate={{ x: [0, 5, 0] }}
+                  transition={{ duration: 1.5, repeat: Infinity, delay: 0.5 }}
+                >
+                  <ArrowRight className="h-6 w-6 text-emerald-400" />
+                </motion.div>
+              </div>
             </motion.div>
-            <motion.div variants={fadeInUp}>
-              <StatCounter value={24} suffix="/7" label="Monitoring" />
+
+            {/* Step 3: Auto Execute */}
+            <motion.div 
+              variants={fadeInUp}
+              className="relative bg-gray-900/60 backdrop-blur-xl border border-gray-700/30 rounded-3xl p-8 text-center"
+            >
+              <div className="absolute -top-4 left-1/2 -translate-x-1/2 px-4 py-1 bg-amber-500 rounded-full text-white text-sm font-semibold">
+                Execute
+              </div>
+              <div className="w-16 h-16 mx-auto mb-6 bg-gradient-to-br from-amber-500/20 to-orange-600/20 rounded-2xl border border-amber-500/30 flex items-center justify-center">
+                <Zap className="h-8 w-8 text-amber-400" />
+              </div>
+              <h3 className="text-xl font-bold text-white mb-3">Autonomous Execution</h3>
+              <p className="text-gray-400 text-sm">Agent detects opportunity and executes instantly. Zero human intervention required.</p>
+              <div className="mt-4 p-3 bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20 rounded-xl text-xs text-amber-300">
+                🤖 Condition met → Agent executed trade!
+              </div>
             </motion.div>
           </motion.div>
         </div>
@@ -694,14 +886,14 @@ export default function Landing() {
           >
             <motion.div variants={fadeInUp} className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-500/10 border border-indigo-500/20 rounded-full mb-6">
               <Sparkles className="h-4 w-4 text-indigo-400" />
-              <span className="text-sm text-indigo-300 font-medium">Powerful Features</span>
+              <span className="text-sm text-indigo-300 font-medium">Platform Capabilities</span>
             </motion.div>
             <motion.h2 variants={fadeInUp} className="text-4xl md:text-5xl font-bold text-white mb-6">
-              Everything You Need to
-              <span className="bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent"> Trade Smarter</span>
+              Enterprise-Grade
+              <span className="bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent"> Agent Infrastructure</span>
             </motion.h2>
             <motion.p variants={fadeInUp} className="text-xl text-gray-400 max-w-2xl mx-auto">
-              Professional-grade trading tools powered by AI, accessible through natural conversation.
+              Deploy intelligent trading agents with institutional-grade reliability. Powered by cutting-edge AI.
             </motion.p>
           </motion.div>
 

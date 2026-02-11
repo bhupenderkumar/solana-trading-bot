@@ -377,13 +377,13 @@ export default function RuleDetail() {
       
       // Handle rule updates
       if (response.action_taken === 'deleted') {
-        toast.success('Rule deleted')
+        toast.success('Agent terminated')
         setTimeout(() => navigate('/dashboard'), 1500)
       } else if (response.rule) {
         queryClient.invalidateQueries({ queryKey: ['rule', ruleId] })
         queryClient.invalidateQueries({ queryKey: ['rules'] })
         if (response.action_taken) {
-          toast.success('Rule updated', response.action_taken.replace('_', ' '))
+          toast.success('Agent updated', response.action_taken.replace('_', ' '))
         }
       }
     },
@@ -413,10 +413,10 @@ export default function RuleDetail() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['rule', ruleId] })
       queryClient.invalidateQueries({ queryKey: ['rules'] })
-      toast.success('Rule updated', rule?.status === 'active' ? 'Rule paused' : 'Rule activated')
+      toast.success('Agent updated', rule?.status === 'active' ? 'Agent paused' : 'Agent activated')
     },
     onError: (error) => {
-      toast.error('Failed to update rule', (error as Error).message)
+      toast.error('Failed to update agent', (error as Error).message)
     }
   })
 
@@ -424,11 +424,11 @@ export default function RuleDetail() {
     mutationFn: () => rulesApi.delete(ruleId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['rules'] })
-      toast.success('Rule deleted')
+      toast.success('Agent terminated')
       window.location.href = '/dashboard'
     },
     onError: (error) => {
-      toast.error('Failed to delete rule', (error as Error).message)
+      toast.error('Failed to terminate agent', (error as Error).message)
     }
   })
 
@@ -446,8 +446,8 @@ export default function RuleDetail() {
         <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center">
           <XCircle className="h-10 w-10 text-red-400" />
         </div>
-        <h2 className="text-2xl font-bold text-white mb-2">Rule not found</h2>
-        <p className="text-gray-400 mb-6">This rule may have been deleted or doesn't exist.</p>
+        <h2 className="text-2xl font-bold text-white mb-2">Agent not found</h2>
+        <p className="text-gray-400 mb-6">This agent may have been terminated or doesn't exist.</p>
         <Link 
           to="/dashboard" 
           className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-500 hover:bg-indigo-600 text-white rounded-xl transition-colors"
@@ -592,7 +592,7 @@ export default function RuleDetail() {
               </div>
               
               <h1 className="text-2xl lg:text-3xl font-bold text-white mb-2">
-                {rule.parsed_summary || 'Trading Rule'}
+                {rule.parsed_summary || 'Trading Agent'}
               </h1>
               <p className="text-gray-400 text-lg">{rule.user_input}</p>
               
@@ -663,7 +663,7 @@ export default function RuleDetail() {
               <p className="text-xs text-gray-500">
                 Analysis from {rule.analysis_data.analyzed_at 
                   ? format(parseDate(rule.analysis_data.analyzed_at), 'MMM d, yyyy HH:mm')
-                  : 'rule creation'}
+                  : 'agent deployment'}
               </p>
             </div>
           </div>
@@ -766,7 +766,7 @@ export default function RuleDetail() {
             {/* Price at Creation */}
             {rule.analysis_data.current_price && (
               <div className="flex items-center justify-between p-3 rounded-lg bg-gray-800/20">
-                <span className="text-xs text-gray-500">Price at rule creation</span>
+                <span className="text-xs text-gray-500">Price at agent deployment</span>
                 <span className="text-sm font-mono text-white">
                   ${rule.analysis_data.current_price.toLocaleString()}
                 </span>
@@ -786,15 +786,15 @@ export default function RuleDetail() {
         )}
       </AnimatePresence>
 
-      {/* Chat with Rule */}
+      {/* Chat with Agent */}
       <motion.div variants={itemVariants} className="rounded-2xl bg-gray-900/50 border border-gray-700/40 overflow-hidden">
         <div className="p-5 border-b border-gray-700/40 flex items-center gap-3">
           <div className="p-2 rounded-xl bg-indigo-500/15 border border-indigo-500/20">
             <MessageSquare className="h-5 w-5 text-indigo-400" />
           </div>
           <div>
-            <h2 className="text-lg font-semibold text-white">Rule Assistant</h2>
-            <p className="text-xs text-gray-500">Chat to query or modify this rule</p>
+            <h2 className="text-lg font-semibold text-white">Agent Assistant</h2>
+            <p className="text-xs text-gray-500">Chat to query or modify this agent</p>
           </div>
         </div>
         
@@ -807,9 +807,9 @@ export default function RuleDetail() {
             {chatMessages.length === 0 ? (
               <div className="text-center py-6">
                 <Bot className="h-8 w-8 text-gray-500 mx-auto mb-2" />
-                <p className="text-sm text-gray-400">Ask me anything about this rule</p>
+                <p className="text-sm text-gray-400">Ask me anything about this agent</p>
                 <div className="mt-3 flex flex-wrap justify-center gap-2">
-                  {['What is this rule?', 'Pause this rule', 'Change target to $200'].map((suggestion) => (
+                  {['What is this agent?', 'Pause this agent', 'Change target to $200'].map((suggestion) => (
                     <button
                       key={suggestion}
                       onClick={() => {
@@ -877,7 +877,7 @@ export default function RuleDetail() {
               type="text"
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
-              placeholder="Ask about this rule or request changes..."
+              placeholder="Ask about this agent or request changes..."
               className="flex-1 bg-gray-800/50 border border-gray-700/50 rounded-xl px-4 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-transparent"
               disabled={sendChatMessage.isPending}
             />
@@ -955,7 +955,7 @@ export default function RuleDetail() {
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-12">
               <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gray-800/50 border border-gray-700/40 flex items-center justify-center"><Clock className="h-8 w-8 text-gray-500" /></div>
               <p className="text-gray-400 font-medium">No logs yet</p>
-              <p className="text-sm text-gray-500 mt-1">Logs will appear when the rule is monitored</p>
+              <p className="text-sm text-gray-500 mt-1">Logs will appear when the agent is active</p>
             </motion.div>
           )}
         </div>

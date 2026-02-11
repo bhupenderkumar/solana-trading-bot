@@ -141,9 +141,10 @@ async def check_rule_condition(rule_id: int):
                 # Execute trade
                 tx_sig = await execute_trade(rule)
 
-                # Record trade
+                # Record trade (inherit wallet_address from rule for filtering)
                 trade = Trade(
                     rule_id=rule_id,
+                    wallet_address=rule.wallet_address,
                     market=rule.market,
                     side="short" if rule.action_type == ActionType.SELL else "long",
                     size=rule.action_amount_percent,  # Simplified - should calculate actual size

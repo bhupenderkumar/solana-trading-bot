@@ -28,12 +28,12 @@ export default function RuleCard({ rule }: RuleCardProps) {
     onSuccess: (updatedRule) => {
       queryClient.invalidateQueries({ queryKey: ['rules'] })
       toast.success(
-        `Rule ${updatedRule.status === 'active' ? 'resumed' : 'paused'}`,
+        `Agent ${updatedRule.status === 'active' ? 'resumed' : 'paused'}`,
         rule.parsed_summary || rule.user_input
       )
     },
     onError: (error) => {
-      toast.error('Failed to toggle rule', (error as Error).message)
+      toast.error('Failed to toggle agent', (error as Error).message)
     },
   })
 
@@ -41,15 +41,15 @@ export default function RuleCard({ rule }: RuleCardProps) {
     mutationFn: () => rulesApi.delete(rule.id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['rules'] })
-      toast.success('Rule deleted', rule.parsed_summary || rule.user_input)
+      toast.success('Agent terminated', rule.parsed_summary || rule.user_input)
     },
     onError: (error) => {
-      toast.error('Failed to delete rule', (error as Error).message)
+      toast.error('Failed to terminate agent', (error as Error).message)
     },
   })
 
   const handleDelete = () => {
-    if (confirm('Are you sure you want to delete this rule?')) {
+    if (confirm('Are you sure you want to terminate this agent?')) {
       deleteRule.mutate()
     }
   }
@@ -77,7 +77,7 @@ export default function RuleCard({ rule }: RuleCardProps) {
       hoverBorder: 'hover:border-cyan-400/40',
       text: 'text-cyan-400',
       icon: CheckCircle,
-      label: 'Triggered',
+      label: 'Executed',
     },
     expired: {
       bg: 'bg-gray-600/30',

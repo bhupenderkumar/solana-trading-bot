@@ -1,0 +1,44 @@
+name: Deploy to Railway
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  deploy-backend:
+    name: Deploy Backend to Railway
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Deploy Backend
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: |
+          cd backend
+          railway up --service solana-trading-bot --detach
+
+  deploy-frontend:
+    name: Deploy Frontend to Railway
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Deploy Frontend
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: |
+          cd frontend
+          railway up --service frontend --detach

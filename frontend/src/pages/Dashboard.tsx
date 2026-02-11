@@ -38,19 +38,19 @@ const itemVariants = {
 
 const QUICK_ACTIONS = [
   {
-    title: 'Create Rule',
-    description: 'Set up automated trading triggers',
+    title: 'Deploy Agent',
+    description: 'Create autonomous trading agents',
     icon: Target,
     color: 'from-indigo-500 to-purple-600',
     bgColor: 'bg-indigo-500/10',
     borderColor: 'border-indigo-500/20',
     iconColor: 'text-indigo-400',
     href: '/chat',
-    example: 'Buy SOL below $80'
+    example: 'Deploy agent to buy SOL below $80'
   },
   {
-    title: 'Check Prices',
-    description: 'Real-time market data',
+    title: 'Market Intel',
+    description: 'Real-time market analysis',
     icon: TrendingUp,
     color: 'from-emerald-500 to-teal-600',
     bgColor: 'bg-emerald-500/10',
@@ -60,7 +60,7 @@ const QUICK_ACTIONS = [
     example: 'SOL, BTC, ETH prices'
   },
   {
-    title: 'Analyze',
+    title: 'Agent Analytics',
     description: 'Performance insights',
     icon: BarChart3,
     color: 'from-amber-500 to-orange-600',
@@ -68,7 +68,7 @@ const QUICK_ACTIONS = [
     borderColor: 'border-amber-500/20',
     iconColor: 'text-amber-400',
     href: '/chat',
-    example: 'Best performer today'
+    example: 'Show agent performance'
   },
 ]
 
@@ -263,10 +263,10 @@ export default function Dashboard() {
       >
         <div>
           <h1 className="text-3xl md:text-4xl font-bold text-white font-heading tracking-tight">
-            Dashboard
+            Agent Control Center
           </h1>
           <p className="text-gray-400 mt-1">
-            Monitor your trading rules and market activity
+            Monitor your autonomous agents and market activity
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -281,8 +281,8 @@ export default function Dashboard() {
             to="/chat"
             className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl text-white font-semibold text-sm hover:shadow-lg hover:shadow-indigo-500/25 transition-all"
           >
-            <MessageSquare className="h-4 w-4" />
-            Open Chat
+            <Zap className="h-4 w-4" />
+            Deploy Agent
             <ArrowRight className="h-4 w-4" />
           </Link>
         </div>
@@ -291,14 +291,14 @@ export default function Dashboard() {
       {/* Stats Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
-          title="Total Rules"
+          title="Total Agents"
           value={totalRules}
           icon={Layers}
           color="bg-gradient-to-br from-indigo-500 to-purple-600"
           delay={0}
         />
         <StatCard
-          title="Active Rules"
+          title="Active Agents"
           value={activeCount}
           change={activeCount > 0 ? `${Math.round((activeCount / Math.max(totalRules, 1)) * 100)}%` : undefined}
           icon={Activity}
@@ -306,14 +306,14 @@ export default function Dashboard() {
           delay={0.1}
         />
         <StatCard
-          title="Triggered"
+          title="Executed"
           value={triggeredCount}
           icon={Zap}
           color="bg-gradient-to-br from-amber-500 to-orange-600"
           delay={0.2}
         />
         <StatCard
-          title="Conversations"
+          title="Sessions"
           value={totalConversations}
           icon={MessageSquare}
           color="bg-gradient-to-br from-cyan-500 to-blue-600"
@@ -548,7 +548,7 @@ export default function Dashboard() {
             <AlertCircle className="h-6 w-6 text-red-400" />
           </div>
           <div>
-            <h3 className="font-semibold text-red-400 font-heading">Error loading rules</h3>
+            <h3 className="font-semibold text-red-400 font-heading">Error loading agents</h3>
             <p className="text-sm text-gray-400 mt-1">{(error as Error).message}</p>
           </div>
         </motion.div>
@@ -564,17 +564,17 @@ export default function Dashboard() {
           <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center">
             <Inbox className="h-8 w-8 text-indigo-400" />
           </div>
-          <h3 className="text-xl font-semibold mb-2 text-white font-heading">No trading rules yet</h3>
+          <h3 className="text-xl font-semibold mb-2 text-white font-heading">No agents deployed yet</h3>
           <p className="text-sm text-gray-400 max-w-md mx-auto mb-6">
-            Create your first automated trading rule using natural language.
-            Try something like "If SOL drops $5, sell my entire position".
+            Deploy your first autonomous trading agent using natural language.
+            Try something like "Deploy an agent to buy SOL when it drops 10%".
           </p>
           <Link
             to="/chat"
             className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl text-white font-semibold hover:shadow-lg hover:shadow-indigo-500/25 transition-all"
           >
-            <MessageSquare className="h-5 w-5" />
-            Create Your First Rule
+            <Zap className="h-5 w-5" />
+            Deploy Your First Agent
           </Link>
         </motion.div>
       )}
@@ -587,7 +587,7 @@ export default function Dashboard() {
           className="bg-gray-900/60 backdrop-blur-xl border border-gray-700/40 rounded-2xl p-10 text-center"
         >
           <Filter className="h-8 w-8 mx-auto mb-3 text-gray-500" />
-          <p className="text-gray-400 mb-2">No rules match your filters</p>
+          <p className="text-gray-400 mb-2">No agents match your filters</p>
           <button
             onClick={() => {
               setSearchQuery('')
@@ -601,7 +601,7 @@ export default function Dashboard() {
         </motion.div>
       )}
 
-      {/* Active Rules */}
+      {/* Active Agents */}
       {activeRules.length > 0 && (
         <motion.section
           initial={{ opacity: 0 }}
@@ -615,7 +615,7 @@ export default function Dashboard() {
                 <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
               </span>
             </div>
-            <h2 className="text-xl font-semibold text-white font-heading">Active Rules</h2>
+            <h2 className="text-xl font-semibold text-white font-heading">Active Agents</h2>
             <span className="px-2.5 py-1 bg-emerald-500/10 text-emerald-400 text-xs font-semibold rounded-full border border-emerald-500/20">
               {activeRules.length}
             </span>
@@ -635,7 +635,7 @@ export default function Dashboard() {
         </motion.section>
       )}
 
-      {/* Paused Rules */}
+      {/* Paused Agents */}
       {pausedRules.length > 0 && (
         <motion.section
           initial={{ opacity: 0 }}
@@ -643,7 +643,7 @@ export default function Dashboard() {
         >
           <div className="flex items-center gap-3 mb-5">
             <PauseCircle className="h-4 w-4 text-amber-500" />
-            <h2 className="text-xl font-semibold text-white font-heading">Paused Rules</h2>
+            <h2 className="text-xl font-semibold text-white font-heading">Standby Agents</h2>
             <span className="px-2.5 py-1 bg-amber-500/10 text-amber-400 text-xs font-semibold rounded-full border border-amber-500/20">
               {pausedRules.length}
             </span>
@@ -663,7 +663,7 @@ export default function Dashboard() {
         </motion.section>
       )}
 
-      {/* Triggered Rules */}
+      {/* Executed Agents */}
       {triggeredRules.length > 0 && (
         <motion.section
           initial={{ opacity: 0 }}
@@ -671,7 +671,7 @@ export default function Dashboard() {
         >
           <div className="flex items-center gap-3 mb-5">
             <CheckCircle2 className="h-4 w-4 text-cyan-500" />
-            <h2 className="text-xl font-semibold text-white font-heading">Triggered Rules</h2>
+            <h2 className="text-xl font-semibold text-white font-heading">Executed Agents</h2>
             <span className="px-2.5 py-1 bg-cyan-500/10 text-cyan-400 text-xs font-semibold rounded-full border border-cyan-500/20">
               {triggeredRules.length}
             </span>

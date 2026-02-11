@@ -356,6 +356,117 @@ Keep responses concise and helpful. For trading-related questions, provide clear
 When presenting data, format it nicely for the user."""
 
 
+SMART_ASSISTANT_PROMPT = """You are an intelligent trading assistant for a Solana-based perpetual futures trading bot using Drift Protocol.
+
+You have access to COMPLETE REAL-TIME DATA about the user's trading activity. Use this data to provide accurate, helpful responses.
+
+## YOUR CAPABILITIES:
+1. **View Trading Rules (Agents)**: See all user's automated trading rules - active, paused, triggered
+2. **View Executed Trades**: See all trades that have been executed by triggered rules
+3. **Check Prices**: Real-time cryptocurrency prices
+4. **Check Balance**: User's account balance
+5. **Create Rules**: Help users set up new automated trading rules
+6. **Analyze Data**: Provide insights based on the user's trading activity
+
+## RESPONSE GUIDELINES:
+- Be conversational and helpful
+- Use the ACTUAL DATA provided - never make up data
+- Format responses with markdown for readability
+- When showing trades or rules, use tables or bullet points
+- If the user asks about something not in the provided data, say so clearly
+- For trading rules, explain what they do in plain language
+- Show relevant statistics when helpful (e.g., success rate, total trades)
+
+## INTENT DETECTION:
+Based on the user's message, determine what they want:
+- Position/trade queries: Show executed trades from the data
+- Rule queries: Show their trading rules
+- Balance queries: Show balance
+- Price queries: Show current prices
+- Creating rules: Help them create new rules
+- General questions: Answer based on context
+
+## IMPORTANT:
+- "Executed" trades means trades that were TRIGGERED by rules
+- "Open positions" in simulation mode = trades with status "confirmed" or "pending"
+- Rules with status "triggered" have already executed
+- Be specific about simulation mode vs real trading
+
+Respond naturally and helpfully based on the provided context."""
+
+
+INSIGHTFUL_TRADING_PROMPT = """You are an expert crypto trading analyst assistant. You provide insightful market analysis with actionable trade suggestions.
+
+## YOUR ROLE:
+When a user asks about a cryptocurrency, you don't just give the price - you provide a COMPLETE analysis with trade insights.
+
+## DATA YOU RECEIVE:
+- Current price
+- 7-day price change %
+- 7-day high/low range
+- Market trend (bullish/bearish/neutral) and strength
+- Support and resistance levels
+- Latest news headlines
+- Market sentiment data
+- Analysis from various sources
+
+## RESPONSE FORMAT:
+For price/market queries, structure your response like this:
+
+1. **Price Summary** - Current price with trend indicator
+2. **Performance** - 7-day stats (change %, high, low, range)
+3. **Market Sentiment** - Based on news and sentiment data
+4. **Trade Suggestion** - Your recommendation with reasoning:
+   - Entry zones (support levels for longs, resistance for shorts)
+   - Exit targets
+   - Risk assessment (Low/Medium/High)
+   - Confidence level (%)
+5. **Key News** - 1-2 relevant headlines if available
+6. **Call to Action** - Offer to create a trading rule
+
+## TRADE SUGGESTION GUIDELINES:
+- If trend is BULLISH: Suggest LONG entries on dips near support
+- If trend is BEARISH: Suggest SHORT entries near resistance, or wait for bounce
+- If trend is NEUTRAL: Suggest waiting or range trading
+- Always mention risk level based on volatility
+- Give specific price levels when possible
+- Confidence should be based on trend strength + news alignment
+
+## EXAMPLE RESPONSE:
+```
+📊 **SOL-PERP: $195.42** 📈
+
+**7-Day Performance:**
+• Change: +5.2%
+• Range: $182.50 - $198.00
+• Trend: Bullish (Moderate)
+
+**Market Sentiment:** 🟢 Positive
+Recent Solana DEX volume surge and ecosystem growth driving momentum.
+
+**💡 Trade Suggestion:**
+• **Position:** LONG
+• **Entry Zone:** $188-192 (near support)
+• **Target:** $210
+• **Stop Loss:** $180
+• **Risk:** Medium | **Confidence:** 68%
+
+**Reasoning:** Strong uptrend with healthy pullback potential. News sentiment aligns with technical momentum.
+
+📰 **Key News:**
+• "Solana DEX volume hits new ATH"
+
+Would you like me to create a trading rule for this?
+```
+
+## IMPORTANT:
+- Be specific with numbers
+- Always explain your reasoning
+- Mention it's simulation mode for risk-free practice
+- If no market data available, still provide general guidance based on price action
+- Keep responses concise but informative"""
+
+
 class LLMAgent:
     def __init__(self):
         self.settings = get_settings()
@@ -1267,6 +1378,307 @@ The chart shows {market} has been {direction} over the past {days} days."""
         lines.append("\n💡 **Tip:** Would you like to set up a price alert or trading rule for {coin}?".format(coin=coin))
         
         return "\n".join(lines)
+
+    async def smart_chat(self, user_input: str, full_context: Dict[str, Any]) -> ChatResponse:
+        """
+        Process chat using LLM with FULL context - let the LLM decide how to respond.
+        
+        Args:
+            user_input: The user's message
+            full_context: Dict containing all available data:
+                - prices: Current market prices
+                - balance: User's account balance
+                - rules: List of user's trading rules
+                - trades: List of executed trades
+                - chat_history: Previous conversation messages
+        
+        Returns:
+            ChatResponse with intelligent LLM-generated response
+        """
+        client, model, http_client = await get_openai_client()
+        
+        # Build comprehensive context string for the LLM
+        context_parts = []
+        
+        # Prices
+        prices = full_context.get("prices", {})
+        if prices:
+            price_lines = ["## Current Prices:"]
+            for market, price in prices.items():
+                price_lines.append(f"- {market}: ${price:,.2f}")
+            context_parts.append("\n".join(price_lines))
+        
+        # Balance
+        balance = full_context.get("balance", {})
+        if balance:
+            total = balance.get("total_usd", 10000)
+            available = balance.get("available_usd", 10000)
+            context_parts.append(f"""## Account Balance:
+- Total Value: ${total:,.2f}
+- Available Margin: ${available:,.2f}
+- Mode: {'Simulation' if balance.get('simulation_mode', True) else 'Live'}""")
+        
+        # Trading Rules (Agents)
+        rules = full_context.get("rules", [])
+        if rules:
+            rule_lines = [f"## Trading Rules ({len(rules)} total):"]
+            status_counts = {"active": 0, "paused": 0, "triggered": 0, "expired": 0}
+            for rule in rules:
+                status = rule.get("status", "unknown")
+                status_counts[status] = status_counts.get(status, 0) + 1
+                rule_lines.append(f"""
+**Rule #{rule.get('id')}** - {status.upper()}
+- Market: {rule.get('market')}
+- Condition: {rule.get('condition_type')} @ ${rule.get('condition_value', 0):,.2f}
+- Action: {rule.get('action_type')}
+- Description: {rule.get('parsed_summary', rule.get('user_input', 'N/A'))}
+- Triggered: {'Yes' if rule.get('triggered_at') else 'No'}""")
+            
+            # Add summary
+            rule_lines.insert(1, f"Summary: {status_counts.get('active', 0)} active, {status_counts.get('triggered', 0)} triggered, {status_counts.get('paused', 0)} paused")
+            context_parts.append("\n".join(rule_lines))
+        else:
+            context_parts.append("## Trading Rules: None created yet")
+        
+        # Executed Trades
+        trades = full_context.get("trades", [])
+        if trades:
+            trade_lines = [f"## Executed Trades ({len(trades)} total):"]
+            for trade in trades:
+                trade_lines.append(f"""
+**Trade #{trade.get('id')}** - {trade.get('status', 'unknown').upper()}
+- Market: {trade.get('market')}
+- Side: {trade.get('side')} ({"profit if price rises" if trade.get('side') == 'long' else "profit if price falls"})
+- Size: {trade.get('size')}
+- Entry Price: ${trade.get('price', 0):,.2f}
+- From Rule: #{trade.get('rule_id')}
+- Executed: {trade.get('executed_at', 'N/A')}
+- TX: {trade.get('tx_signature', 'N/A')}""")
+            context_parts.append("\n".join(trade_lines))
+        else:
+            context_parts.append("## Executed Trades: None yet")
+        
+        # Chat history for context
+        chat_history = full_context.get("chat_history", [])
+        messages = [{"role": "system", "content": SMART_ASSISTANT_PROMPT + "\n\n" + "\n\n".join(context_parts)}]
+        
+        # Add recent chat history (last 6 messages for context)
+        for msg in chat_history[-6:]:
+            messages.append({
+                "role": msg.get("role", "user"),
+                "content": msg.get("content", "")
+            })
+        
+        # Add current message
+        messages.append({"role": "user", "content": user_input})
+        
+        try:
+            response = await client.chat.completions.create(
+                model=model,
+                messages=messages,
+                temperature=0.7,
+                max_tokens=1000
+            )
+            
+            response_text = response.choices[0].message.content
+            
+            # Detect if this should create a rule (look for trading rule patterns in user input)
+            should_create_rule = False
+            rule_keywords = ["when", "if", "alert", "buy when", "sell when", "notify", "trigger"]
+            if any(kw in user_input.lower() for kw in rule_keywords):
+                # Check if it looks like a rule creation request
+                action_keywords = ["buy", "sell", "long", "short", "close"]
+                condition_keywords = ["above", "below", "reaches", "hits", "drops", "rises", "increases", "decreases"]
+                if any(a in user_input.lower() for a in action_keywords) and any(c in user_input.lower() for c in condition_keywords):
+                    should_create_rule = True
+            
+            # Determine intent based on user message
+            intent = "general_chat"
+            if should_create_rule:
+                intent = "trading_rule"
+            elif any(w in user_input.lower() for w in ["trade", "executed", "position", "open position"]):
+                intent = "position_query"
+            elif any(w in user_input.lower() for w in ["rule", "agent", "rules", "agents"]):
+                intent = "rules_query"
+            elif any(w in user_input.lower() for w in ["balance", "fund", "money", "account"]):
+                intent = "balance_query"
+            elif any(w in user_input.lower() for w in ["price", "cost", "worth"]):
+                intent = "price_query"
+            
+            return ChatResponse(
+                intent=intent,
+                response=response_text,
+                data={
+                    "should_create_rule": should_create_rule,
+                    "original_input": user_input if should_create_rule else None,
+                    "smart_mode": True,
+                    "rules_count": len(rules),
+                    "trades_count": len(trades)
+                }
+            )
+            
+        except Exception as e:
+            logger.error(f"Smart chat error: {e}")
+            return ChatResponse(
+                intent="general_chat",
+                response=f"I'm having trouble processing your request. Please try again.",
+                data={"error": str(e)}
+            )
+        finally:
+            await http_client.aclose()
+
+    async def insightful_chat(
+        self, 
+        user_input: str, 
+        market_data: Dict[str, Any],
+        chat_history: List[Dict] = None
+    ) -> ChatResponse:
+        """
+        Generate an insightful response with trade suggestions based on comprehensive market data.
+        
+        Args:
+            user_input: The user's message
+            market_data: Comprehensive market data including:
+                - coin: The cryptocurrency symbol
+                - current_price: Current price
+                - price_change_7d: 7-day price change %
+                - high_7d: 7-day high
+                - low_7d: 7-day low
+                - trend: bullish/bearish/neutral
+                - trend_strength: strong/moderate/weak
+                - support_level: Calculated support level
+                - resistance_level: Calculated resistance level
+                - news: Recent news headlines
+                - sentiment_data: Sentiment analysis
+                - analysis_data: Technical analysis  
+            chat_history: Previous conversation messages
+        
+        Returns:
+            ChatResponse with insightful analysis and trade suggestions
+        """
+        client, model, http_client = await get_openai_client()
+        
+        # Build comprehensive market context
+        coin = market_data.get("coin", "UNKNOWN")
+        current_price = market_data.get("current_price", 0)
+        price_change_7d = market_data.get("price_change_7d")
+        high_7d = market_data.get("high_7d")
+        low_7d = market_data.get("low_7d")
+        trend = market_data.get("trend", "neutral")
+        trend_strength = market_data.get("trend_strength", "weak")
+        support_level = market_data.get("support_level")
+        resistance_level = market_data.get("resistance_level")
+        news = market_data.get("news", [])
+        sentiment_data = market_data.get("sentiment_data", [])
+        analysis_data = market_data.get("analysis_data", [])
+        
+        # Build context string
+        context_parts = [f"## Market Data for {coin}-PERP:"]
+        
+        # Price data
+        context_parts.append(f"""
+### Price Information:
+- Current Price: ${current_price:,.2f}
+- 7-Day Change: {f'{price_change_7d:+.2f}%' if price_change_7d is not None else 'N/A'}
+- 7-Day High: {f'${high_7d:,.2f}' if high_7d else 'N/A'}
+- 7-Day Low: {f'${low_7d:,.2f}' if low_7d else 'N/A'}
+- Trend: {trend.upper()} ({trend_strength})
+- Support Level: {f'${support_level:,.2f}' if support_level else 'N/A'}
+- Resistance Level: {f'${resistance_level:,.2f}' if resistance_level else 'N/A'}
+""")
+        
+        # News headlines
+        if news:
+            context_parts.append("### Recent News:")
+            for i, item in enumerate(news[:3], 1):
+                title = item.get("title", "")
+                body = item.get("body", "")[:150]
+                if title:
+                    context_parts.append(f"{i}. **{title}**")
+                    if body:
+                        context_parts.append(f"   {body}...")
+        else:
+            context_parts.append("### Recent News: No recent news available")
+        
+        # Sentiment data
+        if sentiment_data:
+            context_parts.append("\n### Market Sentiment:")
+            for item in sentiment_data[:2]:
+                title = item.get("title", "")
+                body = item.get("body", "")[:100]
+                if title:
+                    context_parts.append(f"- {title}")
+        
+        # Analysis data
+        if analysis_data:
+            context_parts.append("\n### Technical Analysis:")
+            for item in analysis_data[:2]:
+                title = item.get("title", "")
+                body = item.get("body", "")[:100]
+                if title:
+                    context_parts.append(f"- {title}")
+        
+        context_parts.append("\n### Mode: SIMULATION (Paper Trading)")
+        
+        # Build messages
+        system_content = INSIGHTFUL_TRADING_PROMPT + "\n\n" + "\n".join(context_parts)
+        messages = [{"role": "system", "content": system_content}]
+        
+        # Add chat history
+        if chat_history:
+            for msg in chat_history[-4:]:
+                messages.append({
+                    "role": msg.get("role", "user"),
+                    "content": msg.get("content", "")
+                })
+        
+        # Add user message
+        messages.append({"role": "user", "content": user_input})
+        
+        try:
+            response = await client.chat.completions.create(
+                model=model,
+                messages=messages,
+                temperature=0.7,
+                max_tokens=1200
+            )
+            
+            response_text = response.choices[0].message.content
+            
+            # Check if user wants to create a rule based on suggestion
+            should_create_rule = False
+            if any(kw in user_input.lower() for kw in ["create", "set up", "make", "build"]) and \
+               any(kw in user_input.lower() for kw in ["rule", "alert", "trigger", "agent"]):
+                should_create_rule = True
+            
+            return ChatResponse(
+                intent="price_query",  # Primary intent is price with insights
+                response=response_text,
+                data={
+                    "should_create_rule": should_create_rule,
+                    "insightful_mode": True,
+                    "market": f"{coin}-PERP",
+                    "current_price": current_price,
+                    "trend": trend,
+                    "trend_strength": trend_strength,
+                    "support_level": support_level,
+                    "resistance_level": resistance_level,
+                    "has_news": bool(news),
+                    "has_sentiment": bool(sentiment_data)
+                }
+            )
+            
+        except Exception as e:
+            logger.error(f"Insightful chat error: {e}")
+            # Fallback to basic price response
+            trend_emoji = "📈" if trend == "bullish" else "📉" if trend == "bearish" else "➡️"
+            return ChatResponse(
+                intent="price_query",
+                response=f"{trend_emoji} **{coin}-PERP: ${current_price:,.2f}**\n\n7-Day Change: {f'{price_change_7d:+.2f}%' if price_change_7d else 'N/A'}\n\n_Unable to fetch detailed analysis. Please try again._",
+                data={"error": str(e), "current_price": current_price}
+            )
+        finally:
+            await http_client.aclose()
 
     async def _chat_with_llm(self, user_input: str, context: Dict) -> ChatResponse:
         """Generate a chat response using LLM."""

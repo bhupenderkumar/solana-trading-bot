@@ -59,6 +59,10 @@ async def search_crypto_news(
         search_query = f"{coin_full} news today {datetime.now().strftime('%B %Y')}"
     elif query_type == "sentiment":
         search_query = f"{coin_full} market sentiment prediction"
+    elif query_type == "twitter":
+        search_query = f"{coin_full} twitter crypto sentiment"
+    elif query_type == "technical":
+        search_query = f"{coin_full} technical analysis support resistance"
     else:
         search_query = f"{coin_full} crypto news"
     
@@ -121,6 +125,100 @@ def _do_search(query: str, max_results: int) -> List[Dict[str, str]]:
         return []
 
 
+async def gather_comprehensive_market_data(
+    coin: str,
+    current_price: Optional[float] = None,
+    price_change_7d: Optional[float] = None,
+    high_7d: Optional[float] = None,
+    low_7d: Optional[float] = None
+) -> Dict[str, Any]:
+    """
+    Gather comprehensive market data for a coin including news, sentiment, and analysis.
+    This is used to provide insightful trade suggestions.
+    
+    Args:
+        coin: Cryptocurrency symbol (e.g., "SOL", "BTC")
+        current_price: Current price
+        price_change_7d: 7-day price change percentage
+        high_7d: 7-day high price
+        low_7d: 7-day low price
+    
+    Returns:
+        Comprehensive market data dictionary
+    """
+    logger.info(f"Gathering comprehensive market data for {coin}")
+    
+    # Gather multiple types of data concurrently
+    news_task = search_crypto_news(coin, "news", max_results=3)
+    sentiment_task = search_crypto_news(coin, "sentiment", max_results=2)
+    analysis_task = search_crypto_news(coin, "price_analysis", max_results=2)
+    
+    # Wait for all searches
+    news_results, sentiment_results, analysis_results = await asyncio.gather(
+        news_task, sentiment_task, analysis_task,
+        return_exceptions=True
+    )
+    
+    # Process results
+    all_news = []
+    all_sentiment = []
+    all_analysis = []
+    
+    if isinstance(news_results, dict):
+        all_news = news_results.get("results", [])
+    if isinstance(sentiment_results, dict):
+        all_sentiment = sentiment_results.get("results", [])
+    if isinstance(analysis_results, dict):
+        all_analysis = analysis_results.get("results", [])
+    
+    # Calculate trend based on price data
+    trend = "neutral"
+    trend_strength = "weak"
+    if price_change_7d is not None:
+        if price_change_7d > 10:
+            trend = "bullish"
+            trend_strength = "strong"
+        elif price_change_7d > 3:
+            trend = "bullish"
+            trend_strength = "moderate"
+        elif price_change_7d > 0:
+            trend = "bullish"
+            trend_strength = "weak"
+        elif price_change_7d < -10:
+            trend = "bearish"
+            trend_strength = "strong"
+        elif price_change_7d < -3:
+            trend = "bearish"
+            trend_strength = "moderate"
+        elif price_change_7d < 0:
+            trend = "bearish"
+            trend_strength = "weak"
+    
+    # Calculate support/resistance levels
+    support_level = None
+    resistance_level = None
+    if low_7d and high_7d:
+        range_size = high_7d - low_7d
+        support_level = low_7d + (range_size * 0.1)  # 10% above the low
+        resistance_level = high_7d - (range_size * 0.1)  # 10% below the high
+    
+    return {
+        "coin": coin.upper(),
+        "current_price": current_price,
+        "price_change_7d": price_change_7d,
+        "high_7d": high_7d,
+        "low_7d": low_7d,
+        "trend": trend,
+        "trend_strength": trend_strength,
+        "support_level": support_level,
+        "resistance_level": resistance_level,
+        "news": all_news,
+        "sentiment": all_sentiment,
+        "analysis": all_analysis,
+        "fetched_at": datetime.utcnow().isoformat()
+    }
+
+
 async def search_and_summarize(
     coin: str,
     question: str,
@@ -179,5 +277,6 @@ def clear_cache():
 web_search_service = type('WebSearchService', (), {
     'search_crypto_news': staticmethod(search_crypto_news),
     'search_and_summarize': staticmethod(search_and_summarize),
+    'gather_comprehensive_market_data': staticmethod(gather_comprehensive_market_data),
     'clear_cache': staticmethod(clear_cache)
 })()

@@ -6,8 +6,10 @@ from typing import Optional, Dict, Any, List
 from datetime import datetime
 
 from app.database import get_db
-from app.models import Conversation, ChatMessage, TradingRule, RuleStatus
+from app.models import Conversation, ChatMessage, TradingRule, RuleStatus, Trade
 from app.agents.llm_agent import llm_agent, ChatResponse, SecondaryIntent
+from app.agents.orchestrator import orchestrator_agent
+from app.agents.base_agent import AgentContext
 from app.services.drift_service import drift_service
 from app.services import price_history_service
 from app.services.web_search_service import web_search_service
@@ -15,10 +17,183 @@ from app.services.web_search_service import web_search_service
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
 
+# ============= Helper: Gather full context for smart LLM =============
+
+async def gather_full_context(
+    db: AsyncSession,
+    wallet_address: Optional[str] = None
+) -> Dict[str, Any]:
+    """Gather all relevant context for the smart LLM: rules, trades, prices, balance."""
+    
+    # Fetch prices
+    prices = await drift_service.get_all_perp_prices()
+    
+    # Fetch balance
+    balance = await drift_service.get_account_balance()
+    if not balance:
+        balance = {"total_usd": 10000, "available_usd": 10000, "simulation_mode": True}
+    else:
+        balance["simulation_mode"] = True
+    
+    # Fetch trading rules
+    rules_query = select(TradingRule).order_by(TradingRule.created_at.desc()).limit(20)
+    if wallet_address:
+        rules_query = rules_query.where(TradingRule.wallet_address == wallet_address)
+    rules_result = await db.execute(rules_query)
+    rules_data = []
+    for rule in rules_result.scalars().all():
+        rules_data.append({
+            "id": rule.id,
+            "market": rule.market,
+            "condition_type": rule.condition_type.value if rule.condition_type else None,
+            "condition_value": rule.condition_value,
+            "action_type": rule.action_type.value if rule.action_type else None,
+            "status": rule.status.value if rule.status else "unknown",
+            "user_input": rule.user_input,
+            "parsed_summary": rule.parsed_summary,
+            "triggered_at": rule.triggered_at.isoformat() if rule.triggered_at else None,
+            "created_at": rule.created_at.isoformat() if rule.created_at else None
+        })
+    
+    # Fetch executed trades
+    trades_query = select(Trade).order_by(Trade.executed_at.desc()).limit(20)
+    if wallet_address:
+        trades_query = trades_query.where(Trade.wallet_address == wallet_address)
+    trades_result = await db.execute(trades_query)
+    trades_data = []
+    for trade in trades_result.scalars().all():
+        trades_data.append({
+            "id": trade.id,
+            "rule_id": trade.rule_id,
+            "market": trade.market,
+            "side": trade.side,
+            "size": trade.size,
+            "price": trade.price,
+            "status": trade.status,
+            "tx_signature": trade.tx_signature,
+            "executed_at": trade.executed_at.isoformat() if trade.executed_at else None
+        })
+    
+    return {
+        "prices": prices,
+        "balance": balance,
+        "rules": rules_data,
+        "trades": trades_data
+    }
+
+
+# ============= Helper: Check if query needs smart LLM =============
+
+def needs_smart_response(message: str) -> bool:
+    """Check if a message would benefit from the smart LLM with full context."""
+    smart_keywords = [
+        "trade", "trades", "executed", "position", "positions",
+        "my rule", "my rules", "my agent", "my agents", "show rule", "show rules",
+        "what rule", "what rules", "previous", "history", "how many",
+        "status", "triggered", "active rule", "active agent"
+    ]
+    message_lower = message.lower()
+    return any(kw in message_lower for kw in smart_keywords)
+
+
+# ============= Helper: Check if query needs insightful price response =============
+
+def needs_insightful_price_response(message: str) -> Optional[str]:
+    """
+    Check if a message is asking about price/market and would benefit from insightful response.
+    Returns the detected coin symbol or None.
+    """
+    message_lower = message.lower()
+    
+    # Keywords that trigger insightful response
+    price_keywords = [
+        "price", "worth", "cost", "value", "how much",
+        "market", "analysis", "sentiment", "news", "update",
+        "what is", "what's", "show me", "tell me about",
+        "outlook", "prediction", "forecast", "should i buy", "should i sell",
+        "situation", "happening"
+    ]
+    
+    if not any(kw in message_lower for kw in price_keywords):
+        return None
+    
+    # Detect coin from message
+    coin_patterns = {
+        "sol": "SOL",
+        "solana": "SOL",
+        "btc": "BTC",
+        "bitcoin": "BTC",
+        "eth": "ETH",
+        "ethereum": "ETH",
+        "xrp": "XRP",
+        "ripple": "XRP",
+        "doge": "DOGE",
+        "dogecoin": "DOGE",
+        "bonk": "BONK",
+        "wif": "WIF",
+        "dogwifhat": "WIF",
+        "pepe": "PEPE",
+    }
+    
+    for pattern, coin in coin_patterns.items():
+        if pattern in message_lower:
+            return coin
+    
+    return None
+
+
+# ============= Helper: Gather comprehensive market data =============
+
+async def gather_insightful_market_data(coin: str, prices: Dict[str, float]) -> Dict[str, Any]:
+    """
+    Gather comprehensive market data for insightful response.
+    Includes price, stats, news, and sentiment.
+    """
+    market = f"{coin}-PERP"
+    current_price = prices.get(market, 0)
+    
+    # Get historical stats
+    stats = None
+    try:
+        stats = await price_history_service.get_price_statistics(market, 7)
+    except Exception as e:
+        pass
+    
+    price_change_7d = stats.get("price_change_percent") if stats else None
+    high_7d = stats.get("high_price") if stats else None
+    low_7d = stats.get("low_price") if stats else None
+    
+    # Gather comprehensive market data including news and sentiment
+    try:
+        market_data = await web_search_service.gather_comprehensive_market_data(
+            coin=coin,
+            current_price=current_price,
+            price_change_7d=price_change_7d,
+            high_7d=high_7d,
+            low_7d=low_7d
+        )
+        return market_data
+    except Exception as e:
+        # Return basic data on error
+        return {
+            "coin": coin,
+            "current_price": current_price,
+            "price_change_7d": price_change_7d,
+            "high_7d": high_7d,
+            "low_7d": low_7d,
+            "trend": "neutral",
+            "trend_strength": "unknown",
+            "news": [],
+            "sentiment_data": [],
+            "analysis_data": [],
+            "has_data": False
+        }
+
+
 # ============= Helper: Process secondary intent =============
 
 async def process_secondary_intent(
-    secondary: Dict, 
+    secondary: Dict,
     context: Dict, 
     prices: Dict,
     db: AsyncSession
@@ -78,7 +253,9 @@ async def process_secondary_intent(
             return f"\n**Balance:** ${total:,.2f}"
     
     elif intent == "position_query":
-        return "\n**Positions:** No open positions (Simulation Mode)"
+        # This is now handled by smart_chat with full context
+        # Return None to let the main handler deal with it
+        return None
     
     return None
 
@@ -168,11 +345,42 @@ async def get_conversation_stats(db: AsyncSession, conversation_id: int) -> Conv
 
 
 async def generate_title_from_message(message: str) -> str:
-    """Generate a short title from the first message."""
-    # Simple truncation for now, could use LLM for smarter titles
-    if len(message) <= 30:
-        return message
-    return message[:27] + "..."
+    """Generate a short, descriptive title from the first message using AI."""
+    try:
+        from app.agents.llm_agent import get_openai_client
+        
+        client, model, http_client = await get_openai_client()
+        
+        response = await client.chat.completions.create(
+            model=model,
+            messages=[
+                {
+                    "role": "system",
+                    "content": "Generate a very short title (3-5 words max) for this chat conversation. No quotes, no punctuation at the end. Just the title text. Examples: 'Buy SOL strategy', 'ETH price check', 'Portfolio balance query'"
+                },
+                {
+                    "role": "user", 
+                    "content": message
+                }
+            ],
+            max_tokens=20,
+            temperature=0.3
+        )
+        
+        await http_client.aclose()
+        
+        title = response.choices[0].message.content.strip()
+        # Remove quotes if AI added them
+        title = title.strip('"\'\'\"')
+        # Truncate if too long
+        if len(title) > 40:
+            title = title[:37] + "..."
+        return title if title else "Chat"
+        
+    except Exception as e:
+        # Fallback: simple truncation if AI fails
+        title = message.strip()[:35]
+        return title if title else "Chat"
 
 
 # ============= Conversation Endpoints =============
@@ -412,6 +620,9 @@ async def chat(request: ChatRequest, db: AsyncSession = Depends(get_db)):
             # Update wallet if provided and not already set
             if request.wallet_address and not conversation.wallet_address:
                 conversation.wallet_address = request.wallet_address
+            # Update title if still "New Chat" (first real message)
+            if conversation.title == "New Chat":
+                conversation.title = await generate_title_from_message(request.message)
         else:
             # Create new conversation with wallet_address
             title = await generate_title_from_message(request.message)
@@ -457,303 +668,66 @@ async def chat(request: ChatRequest, db: AsyncSession = Depends(get_db)):
         # Get current context (prices, balance, positions)
         prices = await drift_service.get_all_perp_prices()
         balance = await drift_service.get_account_balance()
-        positions = []  # TODO: Get real positions when available
 
-        context = {
-            "prices": prices,
-            "balance": balance,
-            "positions": positions,
-            "conversation_id": conversation.id,
-            "last_context": last_context,  # Previous response data
-            "chat_history": chat_history   # Full conversation history for LLM
-        }
-
-        # Process chat message (LLM will use chat_history for context-aware responses)
-        chat_response = await llm_agent.chat(request.message, context)
-
-        # Handle historical price queries
-        if chat_response.intent == "historical_price_query" and chat_response.data:
-            if chat_response.data.get("needs_fetch"):
-                market = chat_response.data.get("market", "SOL-PERP")
-                days = chat_response.data.get("days", 7)
-                
-                try:
-                    statistics = await price_history_service.get_price_statistics(market, days)
-                    context["historical_data"] = {"market": market, "days": days, "statistics": statistics}
-                    chat_response = await llm_agent.chat(request.message, context)
-                except Exception as e:
-                    chat_response = ChatResponse(
-                        intent="historical_price_query",
-                        response=f"I couldn't fetch historical data for {market}: {str(e)}",
-                        data=None
-                    )
-
-        # Handle profit calculation queries
-        if chat_response.intent == "profit_calculation" and chat_response.data:
-            if chat_response.data.get("needs_calculation"):
-                market = chat_response.data.get("market", "SOL-PERP")
-                days = chat_response.data.get("days", 7)
-                amount = chat_response.data.get("amount", 100.0)
-                currency = chat_response.data.get("currency", "USD")
-                position_type = chat_response.data.get("position_type", "long")
-                
-                try:
-                    statistics = await price_history_service.get_price_statistics(market, days)
-                    context["profit_data"] = {
-                        "market": market, 
-                        "days": days, 
-                        "investment_amount": amount, 
-                        "statistics": statistics,
-                        "currency": currency,
-                        "position_type": position_type
-                    }
-                    chat_response = await llm_agent.chat(request.message, context)
-                except Exception as e:
-                    chat_response = ChatResponse(
-                        intent="profit_calculation",
-                        response=f"I couldn't calculate profit: {str(e)}",
-                        data=None
-                    )
-
-        # Handle profit scan queries - scan all coins
-        if chat_response.intent == "profit_scan" and chat_response.data:
-            if chat_response.data.get("needs_scan"):
-                days = chat_response.data.get("days", 7)
-                amount = chat_response.data.get("amount", 100.0)
-                currency = chat_response.data.get("currency", "USD")
-                try:
-                    scan_data = await price_history_service.scan_all_coins_profit(days)
-                    scan_data["amount"] = amount
-                    scan_data["currency"] = currency
-                    context["profit_scan_data"] = scan_data
-                    chat_response = await llm_agent.chat(request.message, context)
-                except Exception as e:
-                    chat_response = ChatResponse(
-                        intent="profit_scan",
-                        response=f"I couldn't scan markets: {str(e)}",
-                        data=None
-                    )
-
-        # Handle comparison queries
-        if chat_response.intent == "comparison_query" and chat_response.data:
-            if chat_response.data.get("needs_comparison"):
-                days = chat_response.data.get("days", 7)
-                try:
-                    comparison_data = await price_history_service.compare_all_currencies(days)
-                    context["comparison_data"] = comparison_data
-                    chat_response = await llm_agent.chat(request.message, context)
-                except Exception as e:
-                    chat_response = ChatResponse(
-                        intent="comparison_query",
-                        response=f"I couldn't compare currencies: {str(e)}",
-                        data=None
-                    )
-
-        # Handle market analysis queries - web search for real-time news
-        if chat_response.intent == "market_analysis" and chat_response.data:
-            if chat_response.data.get("needs_search"):
-                market = chat_response.data.get("market", "SOL-PERP")
-                question = chat_response.data.get("question", request.message)
-                symbol = market.replace("-PERP", "")
-                
-                # Get current price for context
-                current_price = prices.get(market)
-                
-                # Get historical data for price change
-                price_change = None
-                try:
-                    stats = await price_history_service.get_price_statistics(market, 7)
-                    if stats and "price_change_percent" in stats:
-                        price_change = stats.get("price_change_percent")
-                except:
-                    pass
-                
-                try:
-                    # Perform web search
-                    search_context = await web_search_service.search_and_summarize(
-                        coin=symbol,
-                        question=question,
-                        current_price=current_price,
-                        price_change=price_change
-                    )
-                    context["market_analysis_data"] = search_context
-                    chat_response = await llm_agent.chat(request.message, context)
-                except Exception as e:
-                    chat_response = ChatResponse(
-                        intent="market_analysis",
-                        response=f"I couldn't search for market news: {str(e)}. Let me provide general information instead.",
-                        data=None
-                    )
-
-        # Handle rules queries - fetch rules from database, filtered by wallet
-        if chat_response.intent == "rules_query" and chat_response.data:
-            if chat_response.data.get("needs_fetch"):
-                # Filter by wallet if available
-                rules_query = select(TradingRule).order_by(TradingRule.created_at.desc()).limit(10)
-                if request.wallet_address:
-                    rules_query = rules_query.where(TradingRule.wallet_address == request.wallet_address)
-                rule_result = await db.execute(rules_query)
-                rules = rule_result.scalars().all()
-                
-                if rules:
-                    lines = ["📋 **Your Trading Rules:**\n"]
-                    for r in rules:
-                        status_emoji = {"active": "🟢", "paused": "⏸️", "triggered": "✅", "expired": "⏹️"}.get(r.status.value, "❓")
-                        lines.append(f"{status_emoji} **{r.market}**: {r.parsed_summary or r.user_input}")
-                    response_text = "\n".join(lines)
-                else:
-                    response_text = "You don't have any trading rules yet.\n\nCreate one by saying something like: \"Buy SOL when it drops below $80\""
-                
-                chat_response = ChatResponse(
-                    intent="rules_query",
-                    response=response_text,
-                    data={"rules_count": len(rules)}
-                )
-
-        # Determine if it's a trading rule or trading action (both can create rules)
-        should_create_rule = False
-        original_input = None
-        analysis_data = None
+        # ============= MULTI-AGENT ORCHESTRATION =============
+        # Use orchestrator to coordinate multiple agents
+        # LLM decides which agents to invoke (no hardcoded if-else)
         
-        if chat_response.intent in ("trading_rule", "trading_action"):
-            # Check if data explicitly says to create a rule
-            if chat_response.data and chat_response.data.get("should_create_rule"):
-                should_create_rule = True
-                original_input = chat_response.data.get("original_input", request.message)
-            elif chat_response.intent == "trading_rule":
-                # Default for trading_rule intent
-                should_create_rule = True
+        agent_context = AgentContext(
+            user_message=request.message,
+            conversation_id=conversation.id,
+            wallet_address=request.wallet_address,
+            chat_history=chat_history,
+            prices=prices
+        )
+        
+        # Run orchestrator - it will:
+        # 1. Use LLM to decide which agents to invoke
+        # 2. Run agents in parallel
+        # 3. Combine results using LLM
+        orchestrator_result = await orchestrator_agent.execute(agent_context)
+        
+        if orchestrator_result.success:
+            response_text = orchestrator_result.data.get("response", "I couldn't process your request.")
+            agents_used = orchestrator_result.data.get("agents_used", [])
+            routing_decision = orchestrator_result.data.get("routing_decision", {})
+            
+            # Get LLM's decision on intent and rule creation - NO HARDCODING
+            intent = routing_decision.get("intent", "general_chat")
+            should_create_rule = routing_decision.get("should_create_rule", False)
+            original_input = routing_decision.get("original_input") if should_create_rule else None
+            
+            # If LLM decided to create rule but didn't set original_input, use the message
+            if should_create_rule and not original_input:
                 original_input = request.message
             
-            # Build comprehensive analysis when creating a rule
-            if should_create_rule:
-                try:
-                    # Detect market from user input
-                    rule_market = "SOL-PERP"  # Default
-                    lower_input = (original_input or request.message).lower()
-                    for m in ["BTC-PERP", "ETH-PERP", "SOL-PERP", "BONK-PERP", "WIF-PERP", "DOGE-PERP", "APT-PERP", "ARB-PERP"]:
-                        if m.split("-")[0].lower() in lower_input:
-                            rule_market = m
-                            break
-                    
-                    symbol = rule_market.replace("-PERP", "")
-                    
-                    # Get current price
-                    current_price = prices.get(rule_market) or await drift_service.get_perp_market_price(rule_market)
-                    
-                    # Fetch historical data (7-day stats)
-                    historical_stats = None
-                    try:
-                        historical_stats = await price_history_service.get_price_statistics(rule_market, 7)
-                    except:
-                        pass
-                    
-                    # Fetch market analysis from web search
-                    market_search = None
-                    try:
-                        price_change = historical_stats.get("price_change_percent") if historical_stats else None
-                        market_search = await web_search_service.search_and_summarize(
-                            coin=symbol,
-                            question=f"What is the current market outlook for {symbol}?",
-                            current_price=current_price,
-                            price_change=price_change
-                        )
-                    except:
-                        pass
-                    
-                    # Build comprehensive response
-                    response_parts = [f"📊 **Creating your trading rule for {symbol}**\n"]
-                    
-                    # Current price section
-                    response_parts.append(f"**Current Price:** ${current_price:,.2f}" if current_price else "")
-                    
-                    # Historical data section
-                    if historical_stats:
-                        change_pct = historical_stats.get("price_change_percent", 0)
-                        high_7d = historical_stats.get("high_price", 0)
-                        low_7d = historical_stats.get("low_price", 0)
-                        direction = "📈" if change_pct >= 0 else "📉"
-                        response_parts.append(f"\n**7-Day Performance:** {direction} {'+' if change_pct >= 0 else ''}{change_pct:.2f}%")
-                        response_parts.append(f"**7-Day Range:** ${low_7d:,.2f} - ${high_7d:,.2f}")
-                    
-                    # Market analysis section
-                    if market_search and market_search.get("summary"):
-                        response_parts.append(f"\n**Market Analysis:**\n{market_search.get('summary')}")
-                    
-                    # News section
-                    if market_search and market_search.get("results"):
-                        response_parts.append("\n**Recent News:**")
-                        for r in market_search["results"][:3]:
-                            title = r.get("title", "")
-                            if title:
-                                response_parts.append(f"• {title}")
-                    
-                    # Prediction/Judgment based on analysis
-                    prediction = None
-                    if historical_stats:
-                        change_pct = historical_stats.get("price_change_percent", 0)
-                        volatility = historical_stats.get("volatility", 0)
-                        if change_pct > 5:
-                            prediction = "🔮 **Outlook:** Strong bullish momentum. Price has been rising significantly."
-                        elif change_pct > 2:
-                            prediction = "🔮 **Outlook:** Moderate bullish trend. Watch for potential continuation."
-                        elif change_pct < -5:
-                            prediction = "🔮 **Outlook:** Strong bearish pressure. Consider risk management."
-                        elif change_pct < -2:
-                            prediction = "🔮 **Outlook:** Moderate downtrend. Market may be seeking support."
-                        else:
-                            prediction = "🔮 **Outlook:** Consolidating. Price is ranging with no clear direction."
-                        if volatility and volatility > 5:
-                            prediction += " ⚠️ High volatility detected."
-                    
-                    if prediction:
-                        response_parts.append(f"\n{prediction}")
-                    
-                    response_parts.append("\n\n✅ *Confirm the rule details below to create it.*")
-                    
-                    # Build analysis_data for storage with rule
-                    analysis_data = {
-                        "current_price": current_price,
-                        "historical_stats": historical_stats,
-                        "market_search": {
-                            "summary": market_search.get("summary") if market_search else None,
-                            "results": market_search.get("results", [])[:3] if market_search else []
-                        },
-                        "prediction": prediction,
-                        "analyzed_at": datetime.utcnow().isoformat()
-                    }
-                    
-                    # Update the response
-                    chat_response = ChatResponse(
-                        intent="trading_rule",
-                        response="\n".join(filter(None, response_parts)),
-                        data={
-                            "should_create_rule": True,
-                            "original_input": original_input or request.message,
-                            "market": rule_market,
-                            "analysis_data": analysis_data
-                        }
-                    )
-                    
-                except Exception as e:
-                    # Fallback to simple response on error
-                    pass
+            chat_response = ChatResponse(
+                intent=intent,
+                response=response_text,
+                data={
+                    "should_create_rule": should_create_rule,
+                    "original_input": original_input,
+                    "orchestrator_mode": True,
+                    "agents_used": agents_used,
+                    "routing_decision": routing_decision,
+                    "agent_results": orchestrator_result.data.get("agent_results", {})
+                }
+            )
+        else:
+            # Fallback to simple response on orchestrator failure
+            chat_response = ChatResponse(
+                intent="general_chat",
+                response=f"I encountered an issue: {orchestrator_result.error}. Please try again.",
+                data={"error": orchestrator_result.error}
+            )
 
-        # Handle compound queries - process secondary intents and combine responses
+        # ============= RESPONSE PROCESSING =============
+        # With orchestrator, the response is already complete
+        # Just extract key fields for saving
+        
+        should_create_rule = chat_response.data.get("should_create_rule", False) if chat_response.data else False
+        original_input = chat_response.data.get("original_input") if chat_response.data else None
         final_response = chat_response.response
-        if chat_response.data and chat_response.data.get("secondary_intents"):
-            secondary_responses = []
-            for secondary in chat_response.data["secondary_intents"]:
-                try:
-                    secondary_text = await process_secondary_intent(secondary, context, prices, db)
-                    if secondary_text:
-                        secondary_responses.append(secondary_text)
-                except Exception as e:
-                    # Log but don't fail the whole response
-                    pass
-            
-            if secondary_responses:
-                final_response = chat_response.response + "\n\n---\n" + "\n".join(secondary_responses)
         
         # Save assistant response
         assistant_message = ChatMessage(
