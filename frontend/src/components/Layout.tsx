@@ -2,6 +2,9 @@ import { ReactNode, useState, useEffect } from 'react'
 import { Link, NavLink, useLocation } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
+import { useWallet, useConnection } from '@solana/wallet-adapter-react'
+import { useWalletModal } from '@solana/wallet-adapter-react-ui'
+import { LAMPORTS_PER_SOL } from '@solana/web3.js'
 import {
   Bot,
   AlertTriangle,
@@ -17,7 +20,9 @@ import {
   Shield,
   Copy,
   Check,
-  ExternalLink
+  ExternalLink,
+  RefreshCw,
+  Coins
 } from 'lucide-react'
 import { healthApi } from '../services/api'
 import { useAuth } from '../hooks/useAuth'
@@ -35,11 +40,53 @@ export default function Layout({ children }: LayoutProps) {
   })
 
   const { wallet, logout, createWallet } = useAuth()
+  
+  // Solana wallet adapter hooks
+  const { publicKey, connected } = useWallet()
+  const { connection } = useConnection()
+  const { setVisible } = useWalletModal()
+  
   const [showMenu, setShowMenu] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [creatingWallet, setCreatingWallet] = useState(false)
   const [copied, setCopied] = useState(false)
   const [scrolled, setScrolled] = useState(false)
+  const [solBalance, setSolBalance] = useState<number | null>(null)
+  const [loadingBalance, setLoadingBalance] = useState(false)
+
+  // Fetch SOL balance when wallet is connected
+  useEffect(() => {
+    let mounted = true
+    
+    const fetchBalance = async () => {
+      if (!publicKey || !connected) {
+        setSolBalance(null)
+        return
+      }
+      
+      setLoadingBalance(true)
+      try {
+        const bal = await connection.getBalance(publicKey)
+        if (mounted) {
+          setSolBalance(bal / LAMPORTS_PER_SOL)
+        }
+      } catch (err) {
+        console.error('Failed to fetch balance:', err)
+        if (mounted) setSolBalance(null)
+      } finally {
+        if (mounted) setLoadingBalance(false)
+      }
+    }
+
+    fetchBalance()
+    // Refresh balance every 30 seconds
+    const interval = setInterval(fetchBalance, 30000)
+    
+    return () => {
+      mounted = false
+      clearInterval(interval)
+    }
+  }, [publicKey, connected, connection])
 
   // Track scroll for header background
   useEffect(() => {
@@ -147,6 +194,27 @@ export default function Layout({ children }: LayoutProps) {
 
             {/* Right: Status + Wallet + Menu */}
             <div className="flex items-center gap-2">
+              {/* SOL Balance - Show when connected */}
+              {connected && publicKey && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-gradient-to-r from-purple-500/10 to-indigo-500/10 border border-purple-500/20"
+                >
+                  <Coins className="h-3.5 w-3.5 text-purple-400" />
+                  {loadingBalance ? (
+                    <RefreshCw className="h-3 w-3 text-purple-400 animate-spin" />
+                  ) : (
+                    <span className="text-xs font-semibold text-purple-300">
+                      {solBalance !== null ? `${solBalance.toFixed(4)} SOL` : '-- SOL'}
+                    </span>
+                  )}
+                  <span className="text-[10px] text-purple-400/60 font-medium px-1 py-0.5 bg-purple-500/10 rounded">
+                    Devnet
+                  </span>
+                </motion.div>
+              )}
+
               {/* System Status - Compact */}
               <motion.div 
                 initial={{ opacity: 0, scale: 0.9 }}
