@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     solana_rpc_url: str = "https://api.mainnet-beta.solana.com"
     drift_env: str = "devnet"  # mainnet or devnet
     wallet_private_key: Optional[str] = None
+    
+    # Drift Trader Microservice
+    drift_trader_url: str = "http://localhost:8101"
 
     # LLM - Azure OpenAI via GitHub Enterprise
     openai_api_key: Optional[str] = None

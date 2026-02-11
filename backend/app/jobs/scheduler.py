@@ -12,6 +12,7 @@ from app.config import get_settings
 from app.database import async_session_maker
 from app.models import TradingRule, JobLog, Trade, RuleStatus, ConditionType, ActionType
 from app.services.drift_service import drift_service
+from app.services.drift_trader_client import drift_trader_client
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -210,29 +211,71 @@ def evaluate_condition(rule: TradingRule, current_price: float) -> bool:
 
 
 async def execute_trade(rule: TradingRule) -> Optional[str]:
-    """Execute the trade action for a rule."""
+    """Execute the trade action for a rule using drift-trader microservice."""
     try:
-        if rule.action_type == ActionType.CLOSE_POSITION:
-            return await drift_service.close_position(rule.market)
+        # Check if drift-trader microservice is available
+        is_available = await drift_trader_client.is_available()
+        
+        if is_available:
+            # Use drift-trader microservice for REAL trades
+            logger.info(f"Executing trade via drift-trader microservice for rule {rule.id}")
+            
+            if rule.action_type == ActionType.CLOSE_POSITION:
+                result = await drift_trader_client.close_position(rule.market, rule_id=rule.id)
+                return result.signature if result.success else None
 
-        elif rule.action_type == ActionType.SELL:
-            # Get current position and calculate size
-            position = await drift_service.get_user_position(rule.market)
-            if position and position["size"] > 0:
-                size_to_sell = abs(position["size"]) * (rule.action_amount_percent / 100)
-                return await drift_service.place_market_order(
-                    rule.market, "short", size_to_sell, reduce_only=True
-                )
-
-        elif rule.action_type == ActionType.BUY:
-            # For buy, use USD amount or calculate from current position
-            if rule.action_amount_usd:
-                current_price = await drift_service.get_perp_market_price(rule.market)
-                if current_price:
-                    size = rule.action_amount_usd / current_price
-                    return await drift_service.place_market_order(
-                        rule.market, "long", size
+            elif rule.action_type == ActionType.SELL:
+                # Get current position
+                position = await drift_trader_client.get_position(rule.market)
+                if position and position.size > 0:
+                    size_to_sell = position.size * (rule.action_amount_percent / 100)
+                    result = await drift_trader_client.place_order(
+                        market=rule.market,
+                        side="sell",
+                        size=size_to_sell,
+                        order_type="market",
+                        reduce_only=True,
+                        rule_id=rule.id,
                     )
+                    return result.signature if result.success else None
+
+            elif rule.action_type == ActionType.BUY:
+                # For buy, use USD amount or calculate from current position
+                if rule.action_amount_usd:
+                    current_price = await drift_service.get_perp_market_price(rule.market)
+                    if current_price:
+                        size = rule.action_amount_usd / current_price
+                        result = await drift_trader_client.place_order(
+                            market=rule.market,
+                            side="buy",
+                            size=size,
+                            order_type="market",
+                            rule_id=rule.id,
+                        )
+                        return result.signature if result.success else None
+        else:
+            # Fallback to mock mode using drift_service
+            logger.warning(f"drift-trader service unavailable, using mock mode for rule {rule.id}")
+            
+            if rule.action_type == ActionType.CLOSE_POSITION:
+                return await drift_service.close_position(rule.market)
+
+            elif rule.action_type == ActionType.SELL:
+                position = await drift_service.get_user_position(rule.market)
+                if position and position["size"] > 0:
+                    size_to_sell = abs(position["size"]) * (rule.action_amount_percent / 100)
+                    return await drift_service.place_market_order(
+                        rule.market, "short", size_to_sell, reduce_only=True
+                    )
+
+            elif rule.action_type == ActionType.BUY:
+                if rule.action_amount_usd:
+                    current_price = await drift_service.get_perp_market_price(rule.market)
+                    if current_price:
+                        size = rule.action_amount_usd / current_price
+                        return await drift_service.place_market_order(
+                            rule.market, "long", size
+                        )
 
         return None
     except Exception as e:

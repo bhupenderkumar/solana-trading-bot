@@ -71,6 +71,28 @@ services:
       - api
     restart: unless-stopped
 
+  # Drift Trader Microservice (isolated driftpy environment)
+  drift-trader:
+    build:
+      context: ./drift-trader
+      dockerfile: Dockerfile
+    container_name: drift-trader
+    environment:
+      - SOLANA_RPC_URL=${SOLANA_RPC_URL:-https://api.devnet.solana.com}
+      - DRIFT_ENV=${DRIFT_ENV:-devnet}
+      - WALLET_PRIVATE_KEY=${WALLET_PRIVATE_KEY}
+      - SERVICE_PORT=8101
+      - MAIN_BACKEND_URL=http://api:8000
+    ports:
+      - "8101:8101"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8101/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
 volumes:
   postgres_data:
 
