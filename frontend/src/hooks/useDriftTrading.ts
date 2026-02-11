@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react'
 import { useWallet, useConnection } from '@solana/wallet-adapter-react'
 import { Transaction, VersionedTransaction } from '@solana/web3.js'
-import { api } from '../services/api'
+import api from '../services/api'
 
 interface OrderParams {
   market: string // e.g., "SOL-PERP"
