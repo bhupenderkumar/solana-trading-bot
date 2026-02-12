@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [
     react(),
     nodePolyfills({
-      // Include specific polyfills needed for Solana
+      // Polyfills needed for Solana wallet adapter
       include: ['buffer', 'crypto', 'stream', 'util', 'events'],
       globals: {
         Buffer: true,

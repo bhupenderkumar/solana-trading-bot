@@ -50,9 +50,7 @@ export default function TradingPanel() {
     placeOrder, 
     getPositions, 
     loading, 
-    error, 
-    lastTransaction,
-    isWalletConnected 
+    error
   } = useDriftTrading()
 
   const [market, setMarket] = useState('SOL-PERP')
@@ -64,6 +62,7 @@ export default function TradingPanel() {
   const [showSuccess, setShowSuccess] = useState(false)
   const [orderHistory, setOrderHistory] = useState<OrderHistory[]>([])
   const [copiedId, setCopiedId] = useState<string | null>(null)
+  const [lastTransaction, setLastTransaction] = useState<{ success?: boolean; signature?: string; explorerUrl?: string } | null>(null)
 
   // Load positions on connect
   useEffect(() => {
@@ -106,8 +105,12 @@ export default function TradingPanel() {
       side,
       size: orderSize,
       price: orderPrice,
-      orderType,
     })
+
+    // Store the transaction for display
+    if (result.success) {
+      setLastTransaction({ success: true, signature: result.signature, explorerUrl: result.explorerUrl })
+    }
 
     // Update order status
     setOrderHistory(prev => prev.map(order => 

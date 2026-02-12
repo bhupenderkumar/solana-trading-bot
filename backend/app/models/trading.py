@@ -156,3 +156,47 @@ class PriceSnapshot(Base):
     market = Column(String, nullable=False, index=True)
     price = Column(Float, nullable=False)
     timestamp = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+
+class PendingTradeStatus(str, enum.Enum):
+    PENDING = "pending"  # Waiting for user approval
+    APPROVED = "approved"  # User approved, executing
+    EXECUTED = "executed"  # Trade executed successfully
+    REJECTED = "rejected"  # User rejected
+    EXPIRED = "expired"  # Timed out
+
+
+class PendingTrade(Base):
+    """Trades that need user approval before execution."""
+    __tablename__ = "pending_trades"
+
+    id = Column(Integer, primary_key=True, index=True)
+    rule_id = Column(Integer, ForeignKey("trading_rules.id"), nullable=True)
+    wallet_address = Column(String, index=True, nullable=False)
+
+    # Trade details
+    market = Column(String, nullable=False)
+    side = Column(String, nullable=False)  # "buy" or "sell"
+    size = Column(Float, nullable=False)
+    price_at_trigger = Column(Float, nullable=False)  # Price when rule triggered
+    
+    # Notification message
+    title = Column(String, nullable=False)
+    message = Column(String, nullable=False)
+    
+    # Status
+    status = Column(Enum(PendingTradeStatus, values_callable=lambda x: [e.value for e in x]), 
+                   default=PendingTradeStatus.PENDING)
+    
+    # Execution result (after user approves and signs)
+    tx_signature = Column(String)
+    executed_price = Column(Float)
+    error = Column(String)
+
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    expires_at = Column(DateTime(timezone=True))  # Auto-expire if not acted on
+    acted_at = Column(DateTime(timezone=True))  # When user approved/rejected
+    
+    # Relationship
+    rule = relationship("TradingRule")

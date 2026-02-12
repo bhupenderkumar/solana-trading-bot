@@ -3,7 +3,7 @@ import { Wallet, Copy, Check, ExternalLink, RefreshCw, Zap, LogOut } from 'lucid
 import { useWallet, useConnection } from '@solana/wallet-adapter-react'
 import { useWalletModal } from '@solana/wallet-adapter-react-ui'
 import { LAMPORTS_PER_SOL } from '@solana/web3.js'
-import { api } from '../services/api'
+import api from '../services/api'
 
 export default function WalletConnect() {
   const { publicKey, connected, connecting, disconnect, wallet } = useWallet()

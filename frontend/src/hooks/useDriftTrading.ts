@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import { useWallet, useConnection } from '@solana/wallet-adapter-react'
+import { useWallet } from '@solana/wallet-adapter-react'
 import { Transaction, VersionedTransaction } from '@solana/web3.js'
 import api from '../services/api'
 
@@ -31,6 +31,18 @@ interface BuildOrderResponse {
   mock_mode?: boolean
 }
 
+interface InitializeUserResponse {
+  success: boolean
+  transaction?: string
+  transaction_type: string
+  message: string
+  details: Record<string, any>
+  simulation: Record<string, any>
+  requires_signature: boolean
+  signer?: string
+  error?: string
+}
+
 interface Position {
   market: string
   market_index: number
@@ -42,10 +54,101 @@ interface Position {
 
 export function useDriftTrading() {
   const { publicKey, signTransaction, connected } = useWallet()
-  const { connection } = useConnection()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [lastTransaction, setLastTransaction] = useState<TransactionResult | null>(null)
+  const [needsAccountInitialization, setNeedsAccountInitialization] = useState(false)
+
+  /**
+   * Initialize a Drift account for the connected wallet
+   */
+  const initializeAccount = useCallback(async (): Promise<TransactionResult> => {
+    if (!publicKey || !signTransaction || !connected) {
+      return {
+        success: false,
+        error: 'Wallet not connected. Please connect your wallet first.',
+      }
+    }
+
+    setLoading(true)
+    setError(null)
+
+    try {
+      // 1. Request unsigned initialize transaction from backend
+      const response = await api.post<InitializeUserResponse>('/api/transactions/initialize-user', {
+        user_pubkey: publicKey.toBase58(),
+      })
+
+      if (!response.data.success || !response.data.transaction) {
+        // Check if account already exists
+        if (response.data.error === 'account_exists') {
+          setNeedsAccountInitialization(false)
+          return {
+            success: true,
+            error: 'Account already initialized',
+          }
+        }
+        throw new Error(response.data.error || 'Failed to build initialize transaction')
+      }
+
+      // 2. Decode the transaction
+      const txBuffer = Buffer.from(response.data.transaction, 'base64')
+      let transaction: Transaction | VersionedTransaction
+
+      try {
+        transaction = VersionedTransaction.deserialize(txBuffer)
+      } catch {
+        transaction = Transaction.from(txBuffer)
+      }
+
+      // 3. Sign with wallet
+      console.log('Requesting wallet signature for account initialization...')
+      const signedTx = await signTransaction(transaction)
+
+      // 4. Serialize signed transaction
+      const signedTxBuffer = signedTx.serialize()
+      const signedTxBase64 = Buffer.from(signedTxBuffer).toString('base64')
+
+      // 5. Submit to backend
+      const submitResponse = await api.post<{
+        success: boolean
+        signature?: string
+        explorer_url?: string
+        error?: string
+      }>('/api/transactions/submit', {
+        signed_transaction: signedTxBase64,
+        user_pubkey: publicKey.toBase58(),
+      })
+
+      if (!submitResponse.data.success) {
+        throw new Error(submitResponse.data.error || 'Failed to submit transaction')
+      }
+
+      setNeedsAccountInitialization(false)
+      
+      const result: TransactionResult = {
+        success: true,
+        signature: submitResponse.data.signature,
+        explorerUrl: submitResponse.data.explorer_url,
+      }
+
+      setLastTransaction(result)
+      return result
+
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Account initialization failed'
+      setError(errorMessage)
+      console.error('Initialize account error:', err)
+      
+      return {
+        success: false,
+        error: errorMessage,
+      }
+
+    } finally {
+      setLoading(false)
+    }
+  }, [publicKey, signTransaction, connected])
 
   /**
    * Build and sign an order transaction
@@ -73,6 +176,14 @@ export function useDriftTrading() {
       })
 
       if (!response.data.success || !response.data.transaction) {
+        // Check if user needs to initialize their Drift account
+        if (response.data.error === 'drift_account_not_found') {
+          setNeedsAccountInitialization(true)
+          return {
+            success: false,
+            error: 'Please initialize your Drift account first. Click "Initialize Account" to continue.',
+          }
+        }
         throw new Error(response.data.error || 'Failed to build transaction')
       }
 
@@ -249,9 +360,11 @@ export function useDriftTrading() {
     getPositions,
     getMarkets,
     executeRule,
+    initializeAccount,
     loading,
     error,
     lastTransaction,
+    needsAccountInitialization,
     isWalletConnected: connected && !!publicKey,
     walletAddress: publicKey?.toBase58(),
   }

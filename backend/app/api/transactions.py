@@ -84,6 +84,65 @@ async def get_market_info(market: str):
     return await service.get_market_info(market)
 
 
+class InitializeUserRequest(BaseModel):
+    """Request to initialize a Drift user account."""
+    user_pubkey: str
+
+
+class InitializeUserResponse(BaseModel):
+    """Response containing the unsigned initialize transaction."""
+    success: bool
+    transaction: Optional[str] = None
+    transaction_type: str = "initialize_user"
+    message: str
+    details: Dict[str, Any] = {}
+    simulation: Dict[str, Any] = {}
+    requires_signature: bool = True
+    signer: Optional[str] = None
+    error: Optional[str] = None
+
+
+@router.post("/initialize-user", response_model=InitializeUserResponse)
+async def build_initialize_user_transaction(request: InitializeUserRequest):
+    """
+    Build an unsigned transaction to initialize a new Drift user account.
+    
+    The user must sign this transaction to create their Drift account before
+    they can place any orders.
+    
+    Example:
+    ```
+    POST /api/transactions/initialize-user
+    {
+        "user_pubkey": "7gDDrwC2hE3hkd97km362rP4wudFCE9f3MBfirTUyvZn"
+    }
+    ```
+    """
+    try:
+        service = get_transaction_service()
+        result = await service.build_initialize_user_transaction(request.user_pubkey)
+        
+        return InitializeUserResponse(
+            success=result.get("success", False),
+            transaction=result.get("transaction"),
+            transaction_type=result.get("transaction_type", "initialize_user"),
+            message=result.get("message", ""),
+            details=result.get("details", {}),
+            simulation=result.get("simulation", {}),
+            requires_signature=result.get("requires_signature", True),
+            signer=result.get("signer"),
+            error=result.get("error"),
+        )
+    except Exception as e:
+        logger.error(f"Error building initialize user transaction: {e}")
+        return InitializeUserResponse(
+            success=False,
+            message=str(e),
+            error=str(e),
+            requires_signature=False,
+        )
+
+
 @router.post("/build-order", response_model=BuildOrderResponse)
 async def build_order_transaction(request: BuildOrderRequest):
     """
@@ -132,8 +191,9 @@ async def build_order_transaction(request: BuildOrderRequest):
             order_type=order_type,
         )
         
+        # Pass through the success status from the service
         return BuildOrderResponse(
-            success=True,
+            success=result.get("success", True),
             transaction=result.get("transaction"),
             transaction_type=result.get("transaction_type", "place_perp_order"),
             message=result.get("message", ""),
@@ -141,6 +201,7 @@ async def build_order_transaction(request: BuildOrderRequest):
             simulation=result.get("simulation", {}),
             requires_signature=result.get("requires_signature", True),
             signer=result.get("signer", request.user_pubkey),
+            error=result.get("error"),
         )
         
     except HTTPException:

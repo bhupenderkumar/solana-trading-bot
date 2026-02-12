@@ -1,7 +1,7 @@
 from app.models.trading import (
     TradingRule, JobLog, Trade, PriceSnapshot, 
-    Conversation, ChatMessage,
-    RuleStatus, ConditionType, ActionType, MessageRole
+    Conversation, ChatMessage, PendingTrade,
+    RuleStatus, ConditionType, ActionType, MessageRole, PendingTradeStatus
 )
 
 __all__ = [
@@ -11,8 +11,10 @@ __all__ = [
     "PriceSnapshot",
     "Conversation",
     "ChatMessage",
+    "PendingTrade",
     "RuleStatus",
     "ConditionType",
     "ActionType",
-    "MessageRole"
+    "MessageRole",
+    "PendingTradeStatus"
 ]

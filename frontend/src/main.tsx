@@ -9,7 +9,6 @@ import App from './App'
 import './index.css'
 
 // Polyfill Buffer for Solana wallet adapter
-// This ensures compatibility with @solana/web3.js and wallet adapters
 if (typeof window !== 'undefined') {
   window.Buffer = window.Buffer || Buffer
   window.global = window.global || window

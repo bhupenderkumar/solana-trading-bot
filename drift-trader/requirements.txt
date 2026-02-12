@@ -1,22 +1,11 @@
-# Drift Protocol Python SDK and dependencies
-# This microservice uses pinned versions compatible with driftpy
+# Drift Protocol Python SDK - latest version
+driftpy>=0.8.0
 
-driftpy==0.6.42
-typing-extensions==4.4.0
-cffi==1.15.1
-
-# Minimal web framework (older version compatible with typing-extensions 4.4.0)
-fastapi==0.95.2
-uvicorn[standard]==0.22.0
-pydantic==1.10.12
-
-# Solana dependencies (installed with driftpy)
-# solana, solders, anchorpy come with driftpy
-
-# HTTP client
-httpx==0.23.3
-aiohttp==3.8.5
+# Web framework - compatible with driftpy 0.8.x
+fastapi>=0.100.0
+uvicorn[standard]>=0.23.0
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
 
 # Utils
-python-dotenv==1.0.0
-base58==2.1.1
+python-dotenv>=1.0.0

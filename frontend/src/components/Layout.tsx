@@ -26,6 +26,7 @@ import {
 } from 'lucide-react'
 import { healthApi } from '../services/api'
 import { useAuth } from '../hooks/useAuth'
+import PendingTradesNotification from './PendingTradesNotification'
 
 interface LayoutProps {
   children: ReactNode
@@ -44,7 +45,7 @@ export default function Layout({ children }: LayoutProps) {
   // Solana wallet adapter hooks
   const { publicKey, connected } = useWallet()
   const { connection } = useConnection()
-  const { setVisible } = useWalletModal()
+  const { setVisible: _setVisible } = useWalletModal()
   
   const [showMenu, setShowMenu] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -483,6 +484,9 @@ export default function Layout({ children }: LayoutProps) {
           {children}
         </motion.div>
       </main>
+
+      {/* Pending Trades Notification */}
+      <PendingTradesNotification />
 
       {/* Footer - Minimal */}
       <footer className="border-t border-gray-700/30 py-3 relative z-10">

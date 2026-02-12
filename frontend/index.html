@@ -8,6 +8,13 @@
     <meta name="description" content="SolTrader - AI-Powered Automated Trading on Solana. Create trading rules using natural language and let AI execute your strategies 24/7." />
     <meta name="keywords" content="Solana, trading, crypto, AI, automation, natural language, DeFi, Web3" />
     <meta name="author" content="SolTrader" />
+    
+    <!-- Early Buffer polyfill for crypto libraries -->
+    <script>
+      // Buffer polyfill shim - runs before any modules load
+      window.global = window.global || window;
+      window.process = window.process || { env: {} };
+    </script>
 
     <!-- Open Graph / Social Media -->
     <meta property="og:title" content="SolTrader - AI Trading on Solana" />

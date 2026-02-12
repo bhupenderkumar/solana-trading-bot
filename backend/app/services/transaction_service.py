@@ -116,17 +116,22 @@ class TransactionService:
             return await self._build_real_order_tx(
                 user_pubkey, market_index, market, side, size, price, order_type
             )
-        except ImportError:
+        except ImportError as e:
             # Fall back to mock transaction for testing
+            logger.warning(f"Import error: {e}")
             return await self._build_mock_order_tx(
                 user_pubkey, market, side, size, price, order_type
             )
         except Exception as e:
+            import traceback
             logger.error(f"Error building transaction: {e}")
-            # Return mock for testing
-            return await self._build_mock_order_tx(
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            # Return mock for testing (with error info)
+            mock_result = await self._build_mock_order_tx(
                 user_pubkey, market, side, size, price, order_type
             )
+            mock_result["mock_reason"] = str(e)
+            return mock_result
     
     async def _build_real_order_tx(
         self,
@@ -138,24 +143,56 @@ class TransactionService:
         price: Optional[float],
         order_type: OrderType
     ) -> Dict[str, Any]:
-        """Build a real Drift order transaction using driftpy."""
+        """Build a real Drift order transaction using driftpy 0.8+."""
         from driftpy.drift_client import DriftClient
         from driftpy.types import OrderParams, MarketType, OrderType as DriftOrderType, PositionDirection
-        from driftpy.constants.config import configs
+        from driftpy.account_subscription_config import AccountSubscriptionConfig
+        from driftpy.addresses import get_user_account_public_key
+        from driftpy.constants.config import DRIFT_PROGRAM_ID
+        from solders.keypair import Keypair
         from solders.pubkey import Pubkey
+        from solders.message import Message
+        from solders.transaction import Transaction
         from solana.rpc.async_api import AsyncClient
         
-        # Connect to Drift
+        # Connect to Solana
         connection = AsyncClient(settings.solana_rpc_url)
-        config = configs[settings.drift_env]
+        user_pubkey_obj = Pubkey.from_string(user_pubkey)
         
-        # Create a read-only drift client (no wallet needed for building tx)
-        # The user will sign with their browser wallet
+        # First, check if user has a Drift account
+        user_account_pubkey = get_user_account_public_key(DRIFT_PROGRAM_ID, user_pubkey_obj, 0)
+        
+        account_info = await connection.get_account_info(user_account_pubkey)
+        if account_info.value is None:
+            await connection.close()
+            # User doesn't have a Drift account - return helpful error
+            return {
+                "success": False,
+                "error": "drift_account_not_found",
+                "message": f"No Drift account found for {user_pubkey}. Please initialize your Drift account first at https://app.drift.trade (use devnet mode).",
+                "details": {
+                    "user_pubkey": user_pubkey,
+                    "network": settings.drift_env,
+                    "action_required": "initialize_drift_account",
+                },
+                "requires_signature": False,
+            }
+        
+        # Create a dummy keypair just for building instructions
+        # We'll use the user's pubkey as the authority
+        dummy_keypair = Keypair()
+        
+        # Create DriftClient with dummy wallet but user's authority
         drift_client = DriftClient(
             connection,
-            authority=Pubkey.from_string(user_pubkey),
+            wallet=dummy_keypair,
             env=settings.drift_env,
+            authority=user_pubkey_obj,
+            account_subscription=AccountSubscriptionConfig("cached"),
         )
+        
+        # Subscribe to initialize the client (fetches account data)
+        await drift_client.subscribe()
         
         # Build order parameters
         direction = PositionDirection.Long() if side == OrderSide.BUY else PositionDirection.Short()
@@ -173,13 +210,30 @@ class TransactionService:
             price=int(price * 1e6) if price else 0,  # Price in 1e6
         )
         
-        # Build the transaction (unsigned)
-        tx = await drift_client.get_place_perp_order_tx(order_params)
+        # Get the instruction (not a signed transaction)
+        ix = await drift_client.get_place_perp_order_ix(order_params)
         
-        # Serialize transaction
+        # Get recent blockhash
+        blockhash_resp = await connection.get_latest_blockhash()
+        recent_blockhash = blockhash_resp.value.blockhash
+        
+        # Build unsigned transaction with user as fee payer
+        message = Message.new_with_blockhash(
+            [ix],
+            user_pubkey_obj,  # Fee payer is the user
+            recent_blockhash
+        )
+        
+        # Create unsigned transaction
+        tx = Transaction.new_unsigned(message)
+        
+        # Serialize the unsigned transaction
         serialized = base64.b64encode(bytes(tx)).decode('utf-8')
         
+        await connection.close()
+        
         return {
+            "success": True,
             "transaction": serialized,
             "transaction_type": "place_perp_order",
             "message": f"{side.value.upper()} {size} {market} at {'market' if order_type == OrderType.MARKET else f'${price}'}",
@@ -319,6 +373,118 @@ class TransactionService:
             "min_order_size": 0.001,
             "max_leverage": 10,
         }
+
+    async def build_initialize_user_transaction(self, user_pubkey: str) -> Dict[str, Any]:
+        """
+        Build a transaction to initialize a new Drift user account.
+        The user must sign this transaction to create their Drift account.
+        """
+        await self.initialize()
+        
+        try:
+            from driftpy.drift_client import DriftClient
+            from driftpy.account_subscription_config import AccountSubscriptionConfig
+            from driftpy.addresses import get_user_account_public_key
+            from driftpy.constants.config import DRIFT_PROGRAM_ID
+            from solders.keypair import Keypair
+            from solders.pubkey import Pubkey
+            from solders.message import Message
+            from solders.transaction import Transaction
+            from solana.rpc.async_api import AsyncClient
+            
+            connection = AsyncClient(settings.solana_rpc_url)
+            user_pubkey_obj = Pubkey.from_string(user_pubkey)
+            
+            # Check if user already has an account
+            user_account_pubkey = get_user_account_public_key(DRIFT_PROGRAM_ID, user_pubkey_obj, 0)
+            account_info = await connection.get_account_info(user_account_pubkey)
+            
+            if account_info.value is not None:
+                await connection.close()
+                return {
+                    "success": False,
+                    "error": "account_exists",
+                    "message": f"Drift account already exists for {user_pubkey}",
+                    "requires_signature": False,
+                }
+            
+            # Create a dummy keypair for signing - user will replace signature
+            dummy_keypair = Keypair()
+            
+            # Create DriftClient
+            drift_client = DriftClient(
+                connection,
+                wallet=dummy_keypair,
+                env=settings.drift_env,
+                authority=user_pubkey_obj,
+                account_subscription=AccountSubscriptionConfig("cached"),
+            )
+            
+            # Subscribe to get state
+            await drift_client.subscribe()
+            
+            # Get initialize user instruction (not async)
+            ix = drift_client.get_initialize_user_instructions()
+            
+            # Get recent blockhash
+            blockhash_resp = await connection.get_latest_blockhash()
+            recent_blockhash = blockhash_resp.value.blockhash
+            
+            # Handle if ix is a list of instructions
+            if isinstance(ix, list):
+                instructions = ix
+            else:
+                instructions = [ix]
+            
+            # Build unsigned transaction
+            message = Message.new_with_blockhash(
+                instructions,
+                user_pubkey_obj,
+                recent_blockhash
+            )
+            
+            tx = Transaction.new_unsigned(message)
+            serialized = base64.b64encode(bytes(tx)).decode('utf-8')
+            
+            await connection.close()
+            
+            return {
+                "success": True,
+                "transaction": serialized,
+                "transaction_type": "initialize_user",
+                "message": f"Initialize Drift account for {user_pubkey[:8]}...{user_pubkey[-6:]}",
+                "details": {
+                    "user_pubkey": user_pubkey,
+                    "network": settings.drift_env,
+                    "account_pubkey": str(user_account_pubkey),
+                },
+                "simulation": {
+                    "estimated_fee": 0.000005,
+                    "rent": 0.00144768,  # Approximate rent for user account
+                    "network": settings.drift_env,
+                },
+                "requires_signature": True,
+                "signer": user_pubkey,
+            }
+            
+        except ImportError as e:
+            logger.warning(f"Import error building initialize tx: {e}")
+            return {
+                "success": False,
+                "error": "sdk_not_available",
+                "message": "Drift SDK not available",
+                "requires_signature": False,
+            }
+        except Exception as e:
+            import traceback
+            logger.error(f"Error building initialize tx: {e}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            return {
+                "success": False,
+                "error": str(e),
+                "message": f"Failed to build initialize transaction: {e}",
+                "requires_signature": False,
+            }
 
 
 # Singleton instance

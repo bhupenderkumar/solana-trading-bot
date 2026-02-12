@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -10,9 +10,8 @@ from sqlalchemy import select
 
 from app.config import get_settings
 from app.database import async_session_maker
-from app.models import TradingRule, JobLog, Trade, RuleStatus, ConditionType, ActionType
+from app.models import TradingRule, JobLog, Trade, RuleStatus, ConditionType, ActionType, PendingTrade, PendingTradeStatus
 from app.services.drift_service import drift_service
-from app.services.drift_trader_client import drift_trader_client
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -137,23 +136,10 @@ async def check_rule_condition(rule_id: int):
             condition_met = evaluate_condition(rule, current_price)
 
             if condition_met:
-                logger.info(f"Condition met for rule {rule_id}! Executing trade...")
+                logger.info(f"Condition met for rule {rule_id}! Creating pending trade for user approval...")
 
-                # Execute trade
-                tx_sig = await execute_trade(rule)
-
-                # Record trade (inherit wallet_address from rule for filtering)
-                trade = Trade(
-                    rule_id=rule_id,
-                    wallet_address=rule.wallet_address,
-                    market=rule.market,
-                    side="short" if rule.action_type == ActionType.SELL else "long",
-                    size=rule.action_amount_percent,  # Simplified - should calculate actual size
-                    price=current_price,
-                    tx_signature=tx_sig,
-                    status="confirmed" if tx_sig else "failed"
-                )
-                session.add(trade)
+                # Create pending trade for user to approve
+                pending_trade = await create_pending_trade(session, rule, current_price)
 
                 # Update rule status
                 rule.status = RuleStatus.TRIGGERED
@@ -161,7 +147,7 @@ async def check_rule_condition(rule_id: int):
 
                 await log_job_result(
                     session, rule_id, current_price, True,
-                    f"Condition met! Trade executed. TX: {tx_sig}"
+                    f"Condition met! Pending trade #{pending_trade.id} created for approval."
                 )
 
                 # Remove job since rule is triggered
@@ -210,77 +196,48 @@ def evaluate_condition(rule: TradingRule, current_price: float) -> bool:
     return False
 
 
-async def execute_trade(rule: TradingRule) -> Optional[str]:
-    """Execute the trade action for a rule using drift-trader microservice."""
-    try:
-        # Check if drift-trader microservice is available
-        is_available = await drift_trader_client.is_available()
-        
-        if is_available:
-            # Use drift-trader microservice for REAL trades
-            logger.info(f"Executing trade via drift-trader microservice for rule {rule.id}")
-            
-            if rule.action_type == ActionType.CLOSE_POSITION:
-                result = await drift_trader_client.close_position(rule.market, rule_id=rule.id)
-                return result.signature if result.success else None
-
-            elif rule.action_type == ActionType.SELL:
-                # Get current position
-                position = await drift_trader_client.get_position(rule.market)
-                if position and position.size > 0:
-                    size_to_sell = position.size * (rule.action_amount_percent / 100)
-                    result = await drift_trader_client.place_order(
-                        market=rule.market,
-                        side="sell",
-                        size=size_to_sell,
-                        order_type="market",
-                        reduce_only=True,
-                        rule_id=rule.id,
-                    )
-                    return result.signature if result.success else None
-
-            elif rule.action_type == ActionType.BUY:
-                # For buy, use USD amount or calculate from current position
-                if rule.action_amount_usd:
-                    current_price = await drift_service.get_perp_market_price(rule.market)
-                    if current_price:
-                        size = rule.action_amount_usd / current_price
-                        result = await drift_trader_client.place_order(
-                            market=rule.market,
-                            side="buy",
-                            size=size,
-                            order_type="market",
-                            rule_id=rule.id,
-                        )
-                        return result.signature if result.success else None
-        else:
-            # Fallback to mock mode using drift_service
-            logger.warning(f"drift-trader service unavailable, using mock mode for rule {rule.id}")
-            
-            if rule.action_type == ActionType.CLOSE_POSITION:
-                return await drift_service.close_position(rule.market)
-
-            elif rule.action_type == ActionType.SELL:
-                position = await drift_service.get_user_position(rule.market)
-                if position and position["size"] > 0:
-                    size_to_sell = abs(position["size"]) * (rule.action_amount_percent / 100)
-                    return await drift_service.place_market_order(
-                        rule.market, "short", size_to_sell, reduce_only=True
-                    )
-
-            elif rule.action_type == ActionType.BUY:
-                if rule.action_amount_usd:
-                    current_price = await drift_service.get_perp_market_price(rule.market)
-                    if current_price:
-                        size = rule.action_amount_usd / current_price
-                        return await drift_service.place_market_order(
-                            rule.market, "long", size
-                        )
-
-        return None
-    except Exception as e:
-        logger.error(f"Error executing trade: {e}")
-        return None
+async def create_pending_trade(session: AsyncSession, rule: TradingRule, current_price: float) -> PendingTrade:
+    """Create a pending trade that needs user approval."""
+    # Determine side and build notification message
+    if rule.action_type == ActionType.BUY:
+        side = "buy"
+        action_text = "Buy"
+    elif rule.action_type == ActionType.SELL:
+        side = "sell"
+        action_text = "Sell"
+    else:
+        side = "sell"
+        action_text = "Close position"
+    
+    # Calculate size
+    size = 0.0
+    if rule.action_amount_usd:
+        size = rule.action_amount_usd / current_price if current_price > 0 else 0
+    elif rule.action_amount_percent:
+        # TODO: Get actual position size to calculate
+        size = rule.action_amount_percent / 100  # Placeholder
+    
+    # Build notification
+    title = f"🔔 Rule Triggered: {rule.market}"
+    message = f"{action_text} {rule.market} at ${current_price:.2f}. Your rule '{rule.user_input}' condition was met."
+    
+    # Create pending trade (expires in 1 hour)
+    pending_trade = PendingTrade(
+        rule_id=rule.id,
+        wallet_address=rule.wallet_address,
+        market=rule.market,
+        side=side,
+        size=size,
+        price_at_trigger=current_price,
+        title=title,
+        message=message,
+        status=PendingTradeStatus.PENDING,
+        expires_at=datetime.utcnow() + timedelta(hours=1),
+    )
+    session.add(pending_trade)
+    
+    logger.info(f"Created pending trade for rule {rule.id}: {action_text} {rule.market}")
+    return pending_trade
 
 
 async def log_job_result(

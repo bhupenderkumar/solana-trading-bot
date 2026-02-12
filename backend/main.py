@@ -7,6 +7,7 @@ import logging
 from app.api import rules_router, prices_router, auth_router, trades_router
 from app.api.chat import router as chat_router
 from app.api.transactions import router as transactions_router
+from app.api.pending_trades import router as pending_trades_router
 from app.database import init_db
 from app.jobs import job_scheduler
 from app.services import drift_service
@@ -76,6 +77,7 @@ app.include_router(auth_router)
 app.include_router(chat_router)
 app.include_router(trades_router)
 app.include_router(transactions_router)
+app.include_router(pending_trades_router)
 
 
 @app.get("/health")

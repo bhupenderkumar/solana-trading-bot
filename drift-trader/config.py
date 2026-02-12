@@ -3,7 +3,8 @@ Configuration for Drift Trader Microservice
 """
 import os
 from functools import lru_cache
-from pydantic import BaseSettings
+from pydantic_settings import BaseSettings
+from pydantic import Field
 
 
 class Settings(BaseSettings):
@@ -27,9 +28,11 @@ class Settings(BaseSettings):
     # Rate limiting
     max_orders_per_minute: int = 10
     
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
+    model_config = {
+        "env_file": ".env",
+        "env_file_encoding": "utf-8",
+        "extra": "ignore",
+    }
 
 
 @lru_cache()
