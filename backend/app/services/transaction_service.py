@@ -58,6 +58,28 @@ DRIFT_MARKET_INDEX = {
 }
 
 
+class _FakeWallet:
+    """A wallet-like object that reports a user's pubkey but does not hold a private key.
+    
+    Used to make DriftClient build instructions with the correct authority/payer
+    so that the user's browser wallet is the only required signer.
+    """
+    def __init__(self, pubkey):
+        self._pubkey = pubkey
+
+    @property
+    def public_key(self):
+        return self._pubkey
+
+    # DriftClient never actually signs when we only extract instructions,
+    # but provide stubs so it doesn't crash.
+    def sign_transaction(self, tx):
+        return tx
+
+    def sign_all_transactions(self, txs):
+        return txs
+
+
 class TransactionService:
     """Service for building Drift Protocol transactions."""
     
@@ -178,16 +200,14 @@ class TransactionService:
                 "requires_signature": False,
             }
         
-        # Create a dummy keypair just for building instructions
-        # We'll use the user's pubkey as the authority
-        dummy_keypair = Keypair()
+        # Create a fake wallet whose public_key is the user's pubkey.
+        # This ensures DriftClient builds instructions with the user as authority/payer.
+        fake_wallet = _FakeWallet(user_pubkey_obj)
         
-        # Create DriftClient with dummy wallet but user's authority
         drift_client = DriftClient(
             connection,
-            wallet=dummy_keypair,
+            wallet=fake_wallet,
             env=settings.drift_env,
-            authority=user_pubkey_obj,
             account_subscription=AccountSubscriptionConfig("cached"),
         )
         
@@ -270,6 +290,7 @@ class TransactionService:
         serialized = base64.b64encode(mock_tx).decode('utf-8')
         
         return {
+            "success": True,
             "transaction": serialized,
             "transaction_type": "place_perp_order",
             "message": f"[MOCK] {side.value.upper()} {size} {market} at {'market' if order_type == OrderType.MARKET else f'${price}'}",
@@ -408,33 +429,34 @@ class TransactionService:
                     "requires_signature": False,
                 }
             
-            # Create a dummy keypair for signing - user will replace signature
-            dummy_keypair = Keypair()
+            # Create a fake wallet whose public_key is the user's pubkey.
+            # This ensures instructions use the user as authority/payer (only required signer).
+            fake_wallet = _FakeWallet(user_pubkey_obj)
             
-            # Create DriftClient
             drift_client = DriftClient(
                 connection,
-                wallet=dummy_keypair,
+                wallet=fake_wallet,
                 env=settings.drift_env,
-                authority=user_pubkey_obj,
                 account_subscription=AccountSubscriptionConfig("cached"),
             )
             
             # Subscribe to get state
             await drift_client.subscribe()
             
-            # Get initialize user instruction (not async)
-            ix = drift_client.get_initialize_user_instructions()
+            # For sub_account 0 we need BOTH initialize_user_stats AND initialize_user
+            instructions = []
+            
+            # Check if user_stats already exists
+            user_stats_pubkey = drift_client.get_user_stats_public_key()
+            stats_info = await connection.get_account_info(user_stats_pubkey)
+            if stats_info.value is None:
+                instructions.append(drift_client.get_initialize_user_stats())
+            
+            instructions.append(drift_client.get_initialize_user_instructions())
             
             # Get recent blockhash
             blockhash_resp = await connection.get_latest_blockhash()
             recent_blockhash = blockhash_resp.value.blockhash
-            
-            # Handle if ix is a list of instructions
-            if isinstance(ix, list):
-                instructions = ix
-            else:
-                instructions = [ix]
             
             # Build unsigned transaction
             message = Message.new_with_blockhash(

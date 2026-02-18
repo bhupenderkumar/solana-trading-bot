@@ -68,6 +68,53 @@ class PositionResponse(BaseModel):
     unrealized_pnl: float
 
 
+@router.get("/check-account/{user_pubkey}")
+async def check_drift_account(user_pubkey: str):
+    """
+    Check if a user has an initialized Drift account on devnet.
+    Returns account status so the frontend can prompt initialization if needed.
+    """
+    try:
+        from driftpy.addresses import get_user_account_public_key
+        from driftpy.constants.config import DRIFT_PROGRAM_ID
+        from solders.pubkey import Pubkey
+        from solana.rpc.async_api import AsyncClient
+        from app.config import get_settings
+
+        settings = get_settings()
+        connection = AsyncClient(settings.solana_rpc_url)
+        user_pubkey_obj = Pubkey.from_string(user_pubkey)
+        user_account_pubkey = get_user_account_public_key(DRIFT_PROGRAM_ID, user_pubkey_obj, 0)
+        account_info = await connection.get_account_info(user_account_pubkey)
+        await connection.close()
+
+        has_account = account_info.value is not None
+        return {
+            "user_pubkey": user_pubkey,
+            "has_drift_account": has_account,
+            "drift_account_pubkey": str(user_account_pubkey),
+            "network": settings.drift_env,
+            "message": "Drift account found" if has_account else "No Drift account. Please initialize to trade.",
+        }
+    except ImportError:
+        return {
+            "user_pubkey": user_pubkey,
+            "has_drift_account": False,
+            "drift_account_pubkey": None,
+            "network": "devnet",
+            "message": "Drift SDK not available — cannot check account",
+        }
+    except Exception as e:
+        logger.error(f"Error checking Drift account: {e}")
+        return {
+            "user_pubkey": user_pubkey,
+            "has_drift_account": False,
+            "drift_account_pubkey": None,
+            "network": "devnet",
+            "message": str(e),
+        }
+
+
 @router.get("/markets")
 async def get_available_markets():
     """Get list of available markets on Drift."""
@@ -251,17 +298,19 @@ async def submit_signed_transaction(request: SubmitSignedTxRequest):
         
         try:
             from solana.rpc.async_api import AsyncClient
-            from solana.transaction import Transaction
+            import base58
             
             # Connect to Solana
             connection = AsyncClient(settings.solana_rpc_url)
             
-            # Deserialize and send
-            tx = Transaction.deserialize(tx_bytes)
-            result = await connection.send_transaction(tx)
+            # Submit the raw signed transaction bytes directly via RPC
+            # This avoids deserialization issues between solders/solana-py
+            result = await connection.send_raw_transaction(tx_bytes)
             
             signature = str(result.value)
             explorer_url = f"https://explorer.solana.com/tx/{signature}?cluster={settings.drift_env}"
+            
+            await connection.close()
             
             return SubmitSignedTxResponse(
                 success=True,
@@ -323,28 +372,33 @@ async def execute_trading_rule(request: ExecuteRuleRequest):
     This is called when a rule condition is met (e.g., price alert triggered).
     The transaction is returned unsigned for the user to sign.
     """
-    from app.database import async_session
-    from app.models.trading import Rule
+    from app.database import async_session_maker
+    from app.models.trading import TradingRule, ActionType
     from sqlalchemy import select
     
-    async with async_session() as session:
+    async with async_session_maker() as session:
         result = await session.execute(
-            select(Rule).where(Rule.id == request.rule_id)
+            select(TradingRule).where(TradingRule.id == request.rule_id)
         )
         rule = result.scalar_one_or_none()
         
         if not rule:
             raise HTTPException(status_code=404, detail="Rule not found")
         
-        # Parse rule to get trade parameters
-        # Rule format: "buy $50 of SOL when price drops below $100"
         service = get_transaction_service()
         
-        # Extract trade details from rule
-        # This is simplified - in production, parse the rule more carefully
-        market = f"{rule.asset}-PERP"
-        side = OrderSide.BUY if rule.action.lower() == "buy" else OrderSide.SELL
-        size = rule.amount if rule.amount else 1.0
+        # Extract trade details from the rule model
+        market = rule.market  # e.g., "SOL-PERP"
+        side = OrderSide.BUY if rule.action_type == ActionType.BUY else OrderSide.SELL
+        
+        # Determine size from USD amount or default
+        size = 1.0
+        if rule.action_amount_usd:
+            # Get current price to calculate size
+            from app.services.drift_service import drift_service
+            current_price = await drift_service.get_perp_market_price(market)
+            if current_price and current_price > 0:
+                size = rule.action_amount_usd / current_price
         
         # Build the transaction
         tx_result = await service.build_place_order_transaction(
@@ -357,6 +411,6 @@ async def execute_trading_rule(request: ExecuteRuleRequest):
         
         return {
             "rule_id": rule.id,
-            "rule_description": rule.original_input,
+            "rule_description": rule.user_input,
             "transaction": tx_result,
         }

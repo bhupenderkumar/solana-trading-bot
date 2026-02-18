@@ -49,8 +49,12 @@ export default function TradingPanel() {
   const { 
     placeOrder, 
     getPositions, 
+    initializeAccount,
     loading, 
-    error
+    error,
+    needsAccountInitialization,
+    checkingAccount,
+    driftAccountInfo,
   } = useDriftTrading()
 
   const [market, setMarket] = useState('SOL-PERP')
@@ -63,6 +67,8 @@ export default function TradingPanel() {
   const [orderHistory, setOrderHistory] = useState<OrderHistory[]>([])
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [lastTransaction, setLastTransaction] = useState<{ success?: boolean; signature?: string; explorerUrl?: string } | null>(null)
+  const [initLoading, setInitLoading] = useState(false)
+  const [initResult, setInitResult] = useState<{ success: boolean; message: string; explorerUrl?: string } | null>(null)
 
   // Load positions on connect
   useEffect(() => {
@@ -74,6 +80,35 @@ export default function TradingPanel() {
   const loadPositions = async () => {
     const pos = await getPositions()
     setPositions(pos)
+  }
+
+  const handleInitializeAccount = async () => {
+    setInitLoading(true)
+    setInitResult(null)
+    try {
+      const result = await initializeAccount()
+      if (result.success) {
+        setInitResult({
+          success: true,
+          message: result.error === 'Account already initialized'
+            ? 'Your Drift account is already set up!'
+            : 'Drift account created successfully!',
+          explorerUrl: result.explorerUrl,
+        })
+      } else {
+        setInitResult({
+          success: false,
+          message: result.error || 'Failed to initialize Drift account',
+        })
+      }
+    } catch (err) {
+      setInitResult({
+        success: false,
+        message: err instanceof Error ? err.message : 'Initialization failed',
+      })
+    } finally {
+      setInitLoading(false)
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -209,11 +244,96 @@ export default function TradingPanel() {
       <div className="p-4 border-b border-dark-700/50">
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-semibold text-white">Trade on Drift</h3>
-          <span className="text-xs bg-success-500/20 text-success-400 px-2 py-1 rounded-full">
-            Devnet
-          </span>
+          <div className="flex items-center gap-2">
+            {driftAccountInfo?.hasDriftAccount && (
+              <span className="text-xs bg-success-500/20 text-success-400 px-2 py-1 rounded-full flex items-center gap-1">
+                <CheckCircle className="h-3 w-3" />
+                Account Ready
+              </span>
+            )}
+            <span className="text-xs bg-success-500/20 text-success-400 px-2 py-1 rounded-full">
+              Devnet
+            </span>
+          </div>
         </div>
       </div>
+
+      {/* Drift Account Initialization Banner */}
+      {checkingAccount && (
+        <div className="m-4 p-4 bg-dark-700/50 border border-dark-600 rounded-lg">
+          <div className="flex items-center gap-3">
+            <RefreshCw className="h-5 w-5 text-primary-400 animate-spin flex-shrink-0" />
+            <p className="text-sm text-dark-300">Checking Drift account status...</p>
+          </div>
+        </div>
+      )}
+
+      {!checkingAccount && needsAccountInitialization && (
+        <div className="m-4 p-4 bg-amber-500/10 border border-amber-500/30 rounded-lg space-y-3">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="h-6 w-6 text-amber-400 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <h4 className="text-amber-400 font-semibold text-sm">Drift Account Required</h4>
+              <p className="text-amber-400/80 text-xs mt-1">
+                You need a Drift Protocol account to trade. This is a one-time on-chain setup 
+                that creates your trading account on Solana devnet. Your wallet will be asked to 
+                sign the transaction.
+              </p>
+            </div>
+          </div>
+
+          {initResult && (
+            <div className={`p-2 rounded-md text-xs ${
+              initResult.success
+                ? 'bg-success-500/10 border border-success-500/30 text-success-400'
+                : 'bg-red-500/10 border border-red-500/30 text-red-400'
+            }`}>
+              <p>{initResult.message}</p>
+              {initResult.explorerUrl && (
+                <a
+                  href={initResult.explorerUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline flex items-center gap-1 mt-1"
+                >
+                  View on Explorer <ExternalLink className="h-3 w-3" />
+                </a>
+              )}
+            </div>
+          )}
+
+          <button
+            onClick={handleInitializeAccount}
+            disabled={initLoading || loading}
+            className="w-full py-2.5 rounded-lg bg-amber-500 hover:bg-amber-400 disabled:bg-amber-500/50 text-dark-900 font-semibold text-sm transition-colors flex items-center justify-center gap-2"
+          >
+            {initLoading ? (
+              <>
+                <RefreshCw className="h-4 w-4 animate-spin" />
+                Creating Account...
+              </>
+            ) : (
+              <>
+                <Wallet className="h-4 w-4" />
+                Initialize Drift Account
+              </>
+            )}
+          </button>
+
+          <p className="text-[10px] text-dark-500 text-center">
+            Costs ~0.035 SOL for rent. Make sure you have devnet SOL (
+            <a
+              href="https://faucet.solana.com/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary-400 underline"
+            >
+              get from faucet
+            </a>
+            )
+          </p>
+        </div>
+      )}
 
       {/* Success Message */}
       {showSuccess && lastTransaction?.success && (

@@ -1,7 +1,10 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useWallet } from '@solana/wallet-adapter-react'
-import { Transaction, VersionedTransaction } from '@solana/web3.js'
+import { Connection, Transaction, VersionedTransaction } from '@solana/web3.js'
 import api from '../services/api'
+
+const SOLANA_RPC_URL = import.meta.env.VITE_SOLANA_RPC_URL || 'https://api.devnet.solana.com'
+const SOLANA_NETWORK = import.meta.env.VITE_SOLANA_NETWORK || 'devnet'
 
 interface OrderParams {
   market: string // e.g., "SOL-PERP"
@@ -58,6 +61,54 @@ export function useDriftTrading() {
   const [error, setError] = useState<string | null>(null)
   const [lastTransaction, setLastTransaction] = useState<TransactionResult | null>(null)
   const [needsAccountInitialization, setNeedsAccountInitialization] = useState(false)
+  const [checkingAccount, setCheckingAccount] = useState(false)
+  const [driftAccountInfo, setDriftAccountInfo] = useState<{
+    hasDriftAccount: boolean
+    driftAccountPubkey?: string
+    network?: string
+  } | null>(null)
+
+  /**
+   * Check if the connected wallet has a Drift account
+   */
+  const checkAccount = useCallback(async () => {
+    if (!publicKey || !connected) return
+
+    setCheckingAccount(true)
+    try {
+      const response = await api.get<{
+        user_pubkey: string
+        has_drift_account: boolean
+        drift_account_pubkey: string | null
+        network: string
+        message: string
+      }>(`/transactions/check-account/${publicKey.toBase58()}`)
+
+      const hasAccount = response.data.has_drift_account
+      setNeedsAccountInitialization(!hasAccount)
+      setDriftAccountInfo({
+        hasDriftAccount: hasAccount,
+        driftAccountPubkey: response.data.drift_account_pubkey || undefined,
+        network: response.data.network,
+      })
+    } catch (err) {
+      console.error('Failed to check Drift account:', err)
+      // Don't block the user – assume they might need init
+      setNeedsAccountInitialization(true)
+    } finally {
+      setCheckingAccount(false)
+    }
+  }, [publicKey, connected])
+
+  // Auto-check when wallet connects
+  useEffect(() => {
+    if (connected && publicKey) {
+      checkAccount()
+    } else {
+      setNeedsAccountInitialization(false)
+      setDriftAccountInfo(null)
+    }
+  }, [connected, publicKey, checkAccount])
 
   /**
    * Initialize a Drift account for the connected wallet
@@ -75,7 +126,7 @@ export function useDriftTrading() {
 
     try {
       // 1. Request unsigned initialize transaction from backend
-      const response = await api.post<InitializeUserResponse>('/api/transactions/initialize-user', {
+      const response = await api.post<InitializeUserResponse>('/transactions/initialize-user', {
         user_pubkey: publicKey.toBase58(),
       })
 
@@ -105,34 +156,40 @@ export function useDriftTrading() {
       console.log('Requesting wallet signature for account initialization...')
       const signedTx = await signTransaction(transaction)
 
-      // 4. Serialize signed transaction
-      const signedTxBuffer = signedTx.serialize()
-      const signedTxBase64 = Buffer.from(signedTxBuffer).toString('base64')
-
-      // 5. Submit to backend
-      const submitResponse = await api.post<{
-        success: boolean
-        signature?: string
-        explorer_url?: string
-        error?: string
-      }>('/api/transactions/submit', {
-        signed_transaction: signedTxBase64,
-        user_pubkey: publicKey.toBase58(),
-      })
-
-      if (!submitResponse.data.success) {
-        throw new Error(submitResponse.data.error || 'Failed to submit transaction')
+      // 4. Submit directly to Solana RPC (not through backend)
+      console.log('Submitting signed transaction to Solana RPC...')
+      const connection = new Connection(SOLANA_RPC_URL, 'confirmed')
+      
+      let signature: string
+      if (signedTx instanceof VersionedTransaction) {
+        signature = await connection.sendRawTransaction(signedTx.serialize())
+      } else {
+        signature = await connection.sendRawTransaction(signedTx.serialize())
       }
+      
+      // 5. Confirm the transaction
+      console.log('Confirming transaction:', signature)
+      const confirmation = await connection.confirmTransaction(signature, 'confirmed')
+      
+      if (confirmation.value.err) {
+        throw new Error(`Transaction failed: ${JSON.stringify(confirmation.value.err)}`)
+      }
+
+      const explorerUrl = `https://explorer.solana.com/tx/${signature}?cluster=${SOLANA_NETWORK}`
 
       setNeedsAccountInitialization(false)
       
       const result: TransactionResult = {
         success: true,
-        signature: submitResponse.data.signature,
-        explorerUrl: submitResponse.data.explorer_url,
+        signature,
+        explorerUrl,
       }
 
       setLastTransaction(result)
+      
+      // Re-check account status
+      await checkAccount()
+      
       return result
 
     } catch (err) {
@@ -148,7 +205,7 @@ export function useDriftTrading() {
     } finally {
       setLoading(false)
     }
-  }, [publicKey, signTransaction, connected])
+  }, [publicKey, signTransaction, connected, checkAccount])
 
   /**
    * Build and sign an order transaction
@@ -166,7 +223,7 @@ export function useDriftTrading() {
 
     try {
       // 1. Request unsigned transaction from backend
-      const response = await api.post<BuildOrderResponse>('/api/transactions/build-order', {
+      const response = await api.post<BuildOrderResponse>('/transactions/build-order', {
         user_pubkey: publicKey.toBase58(),
         market: params.market,
         side: params.side,
@@ -215,29 +272,31 @@ export function useDriftTrading() {
       console.log('Requesting wallet signature...')
       const signedTx = await signTransaction(transaction)
 
-      // 4. Serialize signed transaction
-      const signedTxBuffer = signedTx.serialize()
-      const signedTxBase64 = Buffer.from(signedTxBuffer).toString('base64')
-
-      // 5. Submit to backend (which submits to Solana)
-      const submitResponse = await api.post<{
-        success: boolean
-        signature?: string
-        explorer_url?: string
-        error?: string
-      }>('/api/transactions/submit', {
-        signed_transaction: signedTxBase64,
-        user_pubkey: publicKey.toBase58(),
-      })
-
-      if (!submitResponse.data.success) {
-        throw new Error(submitResponse.data.error || 'Failed to submit transaction')
+      // 4. Submit directly to Solana RPC
+      console.log('Submitting signed transaction to Solana RPC...')
+      const connection = new Connection(SOLANA_RPC_URL, 'confirmed')
+      
+      let signature: string
+      if (signedTx instanceof VersionedTransaction) {
+        signature = await connection.sendRawTransaction(signedTx.serialize())
+      } else {
+        signature = await connection.sendRawTransaction(signedTx.serialize())
       }
+      
+      // 5. Confirm the transaction
+      console.log('Confirming transaction:', signature)
+      const confirmation = await connection.confirmTransaction(signature, 'confirmed')
+      
+      if (confirmation.value.err) {
+        throw new Error(`Transaction failed: ${JSON.stringify(confirmation.value.err)}`)
+      }
+
+      const explorerUrl = `https://explorer.solana.com/tx/${signature}?cluster=${SOLANA_NETWORK}`
 
       const result: TransactionResult = {
         success: true,
-        signature: submitResponse.data.signature,
-        explorerUrl: submitResponse.data.explorer_url,
+        signature,
+        explorerUrl,
       }
 
       setLastTransaction(result)
@@ -268,7 +327,7 @@ export function useDriftTrading() {
 
     try {
       const response = await api.get<Position[]>(
-        `/api/transactions/positions/${publicKey.toBase58()}`
+        `/transactions/positions/${publicKey.toBase58()}`
       )
       return response.data
     } catch (err) {
@@ -282,7 +341,7 @@ export function useDriftTrading() {
    */
   const getMarkets = useCallback(async (): Promise<string[]> => {
     try {
-      const response = await api.get<{ markets: string[] }>('/api/transactions/markets')
+      const response = await api.get<{ markets: string[] }>('/transactions/markets')
       return response.data.markets
     } catch (err) {
       console.error('Failed to fetch markets:', err)
@@ -310,7 +369,7 @@ export function useDriftTrading() {
         rule_id: number
         rule_description: string
         transaction: BuildOrderResponse
-      }>('/api/transactions/execute-rule', {
+      }>('/transactions/execute-rule', {
         rule_id: ruleId,
         user_pubkey: publicKey.toBase58(),
       })
@@ -321,29 +380,29 @@ export function useDriftTrading() {
 
       // 2. Decode and sign
       const txBuffer = Buffer.from(response.data.transaction.transaction, 'base64')
-      const transaction = Transaction.from(txBuffer)
+      let transaction: Transaction | VersionedTransaction
+      try {
+        transaction = VersionedTransaction.deserialize(txBuffer)
+      } catch {
+        transaction = Transaction.from(txBuffer)
+      }
       const signedTx = await signTransaction(transaction)
 
-      // 3. Submit
-      const signedTxBase64 = Buffer.from(signedTx.serialize()).toString('base64')
-      const submitResponse = await api.post<{
-        success: boolean
-        signature?: string
-        explorer_url?: string
-        error?: string
-      }>('/api/transactions/submit', {
-        signed_transaction: signedTxBase64,
-        user_pubkey: publicKey.toBase58(),
-      })
-
-      if (!submitResponse.data.success) {
-        throw new Error(submitResponse.data.error || 'Failed to submit')
+      // 3. Submit directly to Solana RPC
+      const connection = new Connection(SOLANA_RPC_URL, 'confirmed')
+      const signature = await connection.sendRawTransaction(signedTx.serialize())
+      
+      const confirmation = await connection.confirmTransaction(signature, 'confirmed')
+      if (confirmation.value.err) {
+        throw new Error(`Transaction failed: ${JSON.stringify(confirmation.value.err)}`)
       }
+
+      const explorerUrl = `https://explorer.solana.com/tx/${signature}?cluster=${SOLANA_NETWORK}`
 
       return {
         success: true,
-        signature: submitResponse.data.signature,
-        explorerUrl: submitResponse.data.explorer_url,
+        signature,
+        explorerUrl,
       }
 
     } catch (err) {
@@ -361,10 +420,13 @@ export function useDriftTrading() {
     getMarkets,
     executeRule,
     initializeAccount,
+    checkAccount,
     loading,
     error,
     lastTransaction,
     needsAccountInitialization,
+    checkingAccount,
+    driftAccountInfo,
     isWalletConnected: connected && !!publicKey,
     walletAddress: publicKey?.toBase58(),
   }

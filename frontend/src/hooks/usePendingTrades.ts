@@ -31,7 +31,7 @@ export function usePendingTrades() {
     }
 
     try {
-      const response = await api.get<PendingTrade[]>('/api/pending-trades', {
+      const response = await api.get<PendingTrade[]>('/pending-trades', {
         params: {
           wallet_address: publicKey.toBase58(),
           status: 'pending'
@@ -67,7 +67,7 @@ export function usePendingTrades() {
 
       if (result.success && result.signature) {
         // Notify backend of approval with REAL tx signature
-        await api.post(`/api/pending-trades/${trade.id}/approve`, {
+        await api.post(`/pending-trades/${trade.id}/approve`, {
           tx_signature: result.signature,
           executed_price: trade.price_at_trigger // Will be updated with actual price
         })
@@ -89,7 +89,7 @@ export function usePendingTrades() {
   const rejectTrade = useCallback(async (tradeId: number) => {
     setLoading(true)
     try {
-      await api.post(`/api/pending-trades/${tradeId}/reject`)
+      await api.post(`/pending-trades/${tradeId}/reject`)
       await fetchPendingTrades()
       return { success: true }
     } catch (error: any) {
